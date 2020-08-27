@@ -1,0 +1,20 @@
+#!/bin/bash
+
+# git remote -v
+# git remote set-url origin  https://dtarasov7@github.com/dtarasov7/ansible
+#
+# git config --global commit.verbose
+#
+
+if [ $# -lt 1 ]; then
+  MSG="common"
+else
+  MSG="$*"
+fi
+
+set -x
+#echo "$MSG"
+
+git add -v -A .
+git commit -m "$MSG"
+git push -u origin master
