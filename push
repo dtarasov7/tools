@@ -1,9 +1,12 @@
 #!/bin/bash
 
 # git remote -v
-# git remote set-url origin  https://dtarasov7@github.com/dtarasov7/ansible
+# git remote set-url origin  https://dtarasov7@github.com/dtarasov7/tools
 #
 # git config --global commit.verbose
+#
+# git config --global user.email "dtarasov7@gmail.com"
+# git config --global user.name "Dmitry Tarasov"
 #
 
 if [ $# -lt 1 ]; then

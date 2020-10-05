@@ -1,0 +1,4 @@
+#sudo docker-compose down postgres
+sudo docker-compose rm -f -s postgres
+
+
