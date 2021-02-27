@@ -1,0 +1,19 @@
+#!/bin/bash
+sudo apt-get install git gawk m4 libpcre3-dev libwxgtk3.0-dev cmake g++ libgtkmm-3.0-dev uuid-dev libssl-dev sshfs gvfs-libs gvfs-backends gvfs-fuse libsecret-1-dev libssh-dev libsmbclient-dev libnfs-dev fakeroot libarchive-dev
+rm -rf far2l.deb
+rm -rf far2l
+mkdir far2l
+cd far2l
+git clone https://github.com/elfmz/far2l
+cd far2l
+git clone https://github.com/cycleg/far-gvfs.git
+git clone https://github.com/unxed/far2l-fuse.git
+sed -i 's/\.smarty/\.tpl/g' colorer/configs/base/hrc/proto.hrc
+wget https://raw.githubusercontent.com/unxed/far2l-deb/master/smarty.hrc -O colorer/configs/base/hrc/inet/smarty.hrc
+cd ..
+echo "add_subdirectory (far-gvfs)" >> far2l/CMakeLists.txt
+echo "add_subdirectory (far2l-fuse)" >> far2l/CMakeLists.txt
+mkdir build
+cd build
+cmake -DUSEWX=no -DPYTHON=no -DCMAKE_BUILD_TYPE=Release ../far2l
+make
