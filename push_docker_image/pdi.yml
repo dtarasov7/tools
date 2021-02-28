@@ -1,0 +1,59 @@
+---
+- name: push_docker_image
+  debug:
+    msg: "{{ item }}"
+    verbosity: 3
+  tags: always
+
+- name: push_docker_image - check image already exist "{{ item }}"
+  command:
+    docker image ls -q "{{ item }}"
+  register: image_ls
+  tags: always
+
+- name: push_docker_image
+  debug:
+    var: image_ls
+    verbosity: 3
+    tags: always
+
+- name: push_docker_image - If docker image absent on dest server  "{{ item }}"
+  block:
+  - name: push_docker_image - make archive name
+    command:
+      ./form_di_file_name.sh "{{ item }}"
+    delegate_to: 127.0.0.1
+    register: filename
+    tags: always
+
+  - name: push_docker_image
+    debug:
+      var: filename
+      verbosity: 3
+    tags: always
+
+  - name: push_docker_image - copy archive {{ filename.stdout }}
+    copy:
+      src: "{{ docker_archive }}/{{ filename.stdout }}"
+      dest: "/tmp/{{ filename.stdout }}"
+    tags: always
+
+  - name: push_docker_image - load docker image "{{ item }}"
+    command:
+      docker load -i "/tmp/{{ filename.stdout }}"
+    register: dload
+    tags: always
+
+  - name: push_docker_image
+    debug:
+      var: dload
+      verbosity: 3
+    tags: always
+
+  - name: push_docker_image - remove archive "{{ item }}"
+    file:
+      path: "/tmp/{{ filename.stdout }}"
+      state: absent
+    tags: always
+
+  when: image_ls.stdout == ""

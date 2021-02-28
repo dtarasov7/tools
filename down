@@ -1,1 +1,1 @@
-docker-compose down $1
+sudo docker-compose down $1

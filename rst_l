@@ -10,3 +10,4 @@ fi
 #docker-compose kill $1
 sudo docker-compose rm -f -s $1
 sudo docker-compose up -d  $1
+./log $1

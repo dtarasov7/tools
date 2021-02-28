@@ -1,0 +1,36 @@
+awx         ansible_host=10.30.129.36   ansible_connection=ssh        ansible_user=slave
+ap01        ansible_host=10.7.27.64  ansible_connection=ssh ansible_user=slave
+pg01        ansible_host=10.7.27.52  ansible_connection=ssh ansible_user=slave
+ap05        ansible_host=10.7.27.68  ansible_connection=ssh ansible_user=slave
+ap06        ansible_host=10.7.27.69  ansible_connection=ssh ansible_user=slave
+
+[d_nginx]
+ap01
+pg01
+
+[d_common]
+ap01
+pg01
+ap05
+ap06
+
+[d_elk]
+ap01
+pg01
+ap05
+ap06
+
+[d_prom]
+ap06
+
+[d_pg]
+pg01
+
+[d_work]
+pg01
+
+[d_dock]
+ap05
+
+[d_one]
+pg01

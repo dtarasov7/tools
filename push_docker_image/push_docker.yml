@@ -1,0 +1,54 @@
+---
+- hosts: all
+  vars:
+    docker_archive: "/opt/docker_archive"
+    force: false
+    cash: true
+    mortgage: true
+  vars_files:
+    - ./vars-list_di.yml
+
+  tasks:
+
+    - name: push_docker_image d_nginx
+      include_tasks: pdi.yml
+      loop: "{{ d_nginx }}"
+      when: inventory_hostname in groups['d_nginx']
+
+    - name: push_docker_image d_common
+      include_tasks: pdi.yml
+      loop: "{{ d_common }}"
+      when: inventory_hostname in groups['d_common']
+
+    - name: push_docker_image d_elk
+      include_tasks: pdi.yml
+      loop: "{{ d_elk }}"
+      when: inventory_hostname in groups['d_elk']
+
+    - name: push_docker_image d_prom
+      include_tasks: pdi.yml
+      loop: "{{ d_prom }}"
+      when: inventory_hostname in groups['d_prom']
+
+    - name: push_docker_image d_pg
+      include_tasks: pdi.yml
+      loop: "{{ d_pg }}"
+      when: inventory_hostname in groups['d_pg']
+
+    - name: push_docker_image d_work
+      include_tasks: pdi.yml
+      loop: "{{ d_work }}"
+      tags: d_work
+      when: inventory_hostname in groups['d_work']
+
+    - name: push_docker_image d_dock
+      include_tasks: pdi.yml
+      loop: "{{ d_dock }}"
+      tags: d_dock
+      when: inventory_hostname in groups['d_dock']
+
+    - name: push_docker_image d_one
+      include_tasks: pdi.yml
+      loop: "{{ d_one }}"
+      tags: d_one
+      when: inventory_hostname in groups['d_one']

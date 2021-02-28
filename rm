@@ -8,5 +8,5 @@ fi
 
 #docker-compose stop $1
 #docker-compose kill $1
-docker-compose rm -f -s $1
+sudo docker-compose rm -f -s $1
 #docker-compose up -d  $1

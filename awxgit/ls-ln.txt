@@ -1,0 +1,10 @@
+total 40
+-rw-------. 1   0   0 2624 Oct  4 23:57 docker-compose.yml
+-rwxr-xr-x. 1   0   0   27 Jun 26 18:34 down
+-rwxr-xr-x. 1   0   0   75 Oct  5 08:19 down_pg
+-rw-r--r--. 1   0   0 7366 Oct  4 23:56 inventory
+-rwxr-xr-x. 1   0   0   25 Oct  5 08:39 logs
+-rw-r--r--. 1   0   0    0 Nov 22 16:53 ls-ln.txt
+-rw-------. 1 999 999 4605 Oct  4 23:02 pg_hba.conf
+-rwxr-xr-x. 1   0   0   28 Jun 26 18:34 up
+-rwxr-xr-x. 1   0   0   37 Oct  5 08:18 up_pg
