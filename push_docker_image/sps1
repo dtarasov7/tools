@@ -1,0 +1,15 @@
+auditbeat-7.9.2.tar.gz
+blackbox-exporter-v0.18.0.tar.gz
+filebeat-oss-7.10.1.tar.gz
+grafana-7.3.7.tar.gz
+logstash-oss-7.10.1.tar.gz
+lvm-exporter-latest.tar.gz
+opendistro-for-elasticsearch-1.12.0.tar.gz
+opendistro-for-elasticsearch-kibana-1.12.0.tar.gz
+postgres_exporter-v0.8.0.tar.gz
+prometheus-nginxlog-exporter-v1.8.0.tar.gz
+prometheus-v2.24.1.tar.gz
+pushgateway-v1.4.0.tar.gz
+strapi-3.4.5-node12.tar.gz
+trivy-0.15.0.tar.gz
+victoria-metrics-v1.50.2.tar.gz

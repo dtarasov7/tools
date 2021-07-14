@@ -1,0 +1,10 @@
+alertmanager_v0.21.0.tar
+blackbox-exporter_v0.19.0.tar
+cadvisor_v0.37.5.tar
+grafana_7.5.6.tar
+node-exporter_v1.1.2.tar
+prometheus_v2.26.0.tar
+pushgateway_v1.4.0.tar
+#redis_6.2.3-alpine.tar
+redis-commander_snyk-fix-08c85f17c94a7f00df6fb21e8ea1d10d.tar
+redis_exporter_v1.23.1-alpine.tar
