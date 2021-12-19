@@ -1,2 +1,2 @@
-sudo docker-compose up -d $1
-./log
+docker-compose up -d "$@"
+./logs "$@"
