@@ -1,0 +1,11 @@
+groups:
+- name: nginxlog
+  rules:
+  - alert: NginxlogParseError
+    expr: nginx_parse_errors_total > 0
+    for: 60s
+    labels:
+      severity: warning
+    annotations:
+      summary: "Warning: NginxLog parse errors on the instance: {{ $labels.instance }}, log: {{ $labels.vhost }}"
+      description: "NginxLog parse errors are {{ $value }}"

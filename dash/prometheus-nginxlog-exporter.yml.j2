@@ -1,0 +1,24 @@
+listen:
+  port: {{ nginxlog['port'] }}
+  address: "0.0.0.0"
+
+consul:
+  enable: false
+
+namespaces:
+{% for item in nginxlog_exporter %}
+{% for log_file in item['logFiles'] %}
+  - name: {{ log_file }}
+    metrics_override:
+      prefix: "nginx"
+    namespace_label: "vhost"
+    parser: "json"
+    source:
+      files:
+        - /mnt/nginxlogs/{{ log_file }}
+    labels:
+      service: "nginx_{{ log_file.split('.') | first }}"
+      hostname: "{{ ansible_host }}"
+    histogram_buckets: [.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10]
+{% endfor %}
+{% endfor %}
