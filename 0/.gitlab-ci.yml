@@ -1,0 +1,44 @@
+include:
+  - project: 'mps/appfarm/helm-template'
+    file: '.include-ci-new.yml'
+  - local: .variables-ci.yml
+
+stages:
+  - copy_image
+  - make_helm
+
+copy_image:
+  stage: copy_image
+  image: $DI
+  tags:
+    - devsecops
+  #when: manual
+  before_script:
+#    - echo "add before "
+    - !reference [.parse_tag, before_script]
+#    - echo "add before 2"
+  script:
+#    - echo "add script "
+    - !reference [.copy_image_script, script]
+#    - echo "add script 2"
+  only:
+    - tags
+
+make_helm:
+  stage: make_helm
+  image: $DI
+  tags:
+    - devsecops
+  #when: manual
+  before_script:
+    - !reference [.parse_tag, before_script]
+  script:
+    - !reference [.make_helm_script, script]
+#  extends:
+#    - .parse_tag
+#    - .make_helm_script
+  only:
+    - tags
+
+
+  
