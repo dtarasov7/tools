@@ -1,0 +1,11 @@
+
+https://www.keycloak.org/server/all-config
+
+http-relative-path 
+
+Set the path relative to / for serving resources.
+
+The path must start with a /.
+
+CLI: --http-relative-path
+Env: KC_HTTP_RELATIVE_PATH
