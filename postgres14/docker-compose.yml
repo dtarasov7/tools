@@ -1,0 +1,72 @@
+version: '3.1'
+
+services:
+
+  pg:
+    image: "postgres:16.1"
+    container_name: ${COMPOSE_PROJECT_NAME}-pg
+    hostname: $HOSTNAME
+    restart: unless-stopped
+    shm_size: ${POSTGRES_SHM_SIZE}
+
+    # Если включается pg_stat_statements то - login to the container with postgres user (-U postgres) and enable the extension with command:
+    # CREATE EXTENSION  IF NOT EXISTS pg_stat_statements;
+    # Check if good:
+    # SELECT * FROM pg_available_extensions WHERE name = 'pg_stat_statements' and installed_version is not null;
+    #
+    command:
+      - "postgres"
+      - "-c"
+      - "shared_preload_libraries=pg_stat_statements"
+      - "-c"
+      - "pg_stat_statements.track=all"
+      - "-c"
+      - "track_io_timing=on"
+      - "-c"
+      - "max_connections=${POSTGRES_MAX_CONNECTIONS}"
+      - "-c"
+      - "shared_buffers=${POSTGRES_SHARED_BUFFERS}"
+      - "-c"
+      - "effective_cache_size=${POSTGRES_EFFECTIVE_CACHE_SIZE}"
+      - "-c"
+      - "work_mem=${POSTGRES_WORK_MEM}"
+      - "-c"
+      - "maintenance_work_mem=${POSTGRES_MAINTENANCE_WORK_MEM}"
+      - "-c"
+      - "random_page_cost=${POSTGRES_RANDOM_PAGE_COST}"
+      - "-c"
+      - "temp_file_limit=${POSTGRES_TEMP_FILE_LIMIT}"
+      - "-c"
+      - "log_min_duration_statement=${POSTGRES_LOG_MIN_DURATION_STATEMENT}"
+#      - "-c"
+#      - "idle_in_transaction_session_timeout=${POSTGRES_IDLE_IN_TRANSACTION_SESSION_TIMEOUT}"
+      - "-c"
+      - "lock_timeout=${POSTGRES_LOCK_TIMEOUT}"
+      - "-c"
+      - "pg_stat_statements.max=${POSTGRES_PG_STAT_STATEMENTS_MAX}"
+
+    environment:
+      - TZ=Europe/Moscow
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - DB_USER=admin
+      - DB=keycloak
+      - DB_PASSWORD=Ergt44
+    volumes:
+      - /data/pgdata:/var/lib/postgresql/data
+      - ./init.db:/docker-entrypoint-initdb.d
+    network_mode: host
+#    ports:
+#      # порт БД наружу для периода тестовой эксплуатации
+#      - $POSTGRES_EXTERNAL_PORT:5432
+    labels:
+      product_id: "mps-prod-kk-db"
+      env: "prod"
+      index_period: "month"
+#      filebeat.enable: "true"
+    logging: &logging
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
+        labels: "product_id,index_period,env"
+

@@ -1,0 +1,15 @@
+- name: Deploy Vector
+  hosts: vector
+  gather_facts: true
+  vars:
+    # up/down/restart/none
+    dc: none
+    regex:
+      - pattern: !unsafe '\\{\\{'
+        string: !unsafe '{{'
+      - pattern: !unsafe '\\}\\}'
+        string: !unsafe '}}'
+
+  roles:
+    - role: deploy_vector
+      tags: deploy_vector

@@ -1,0 +1,15 @@
+---
+################## vars for deploy docker-compose file
+ls_java_opt: # minimum and maximum Java heap size (use Mb)
+     min: '512m'
+     max: '512m'
+
+################## vars for deploy logstash.yml
+#dead_letter_queue_max_bytes: 1024Mb # Maximum size of dead letter queue for this pipeline. Default is 1024mb
+#dead_letter_queue_retain_age: 30d # Logstash remove events that are older than a value you define
+pipeline_workers: '' #The number of workers that will, in parallel, execute the filter and output stages of the pipeline
+
+################## vars for deploy pipline files
+# main.pipline
+client_inactivity_timeout: '36000' #Close Idle clients after X seconds of inactivity (Default value is 60)
+

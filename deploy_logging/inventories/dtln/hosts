@@ -1,0 +1,43 @@
+[all]
+i-odfe01 ansible_host=10.80.
+i-prom ansible_host=10.80.
+i-odfe02 ansible_host=10.80.
+
+#[es_single]
+#ol8 node_name='["node01"]' # вариант с 1 нодой на хосте
+#o4n02 node_name='["node02", "node03"]' # вариант с 2мя нодами на хосте
+
+[opensearch:children]
+es_cluster
+kibana
+
+[es_cluster]
+i-odfe01
+i-odfe02
+i-prom
+
+[kibana]
+i-odfe01
+i-odfe02
+i-prom
+
+[logstash]
+i-odfe01
+i-odfe02
+i-prom
+#dev-kc
+#dev-yavagro-wcms-01
+#dev-digital-wcms-01
+#dev-fermerstvo-wcms-01
+#preprod-digital-wcms-01
+
+[filebeat]
+i-odfe01
+i-odfe02
+i-prom
+dev-kc
+dev-gm
+#dev-yavagro-wcms-01
+#dev-digital-wcms-01
+#dev-fermerstvo-wcms-01
+#preprod-digital-wcms-01

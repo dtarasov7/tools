@@ -1,0 +1,82 @@
+ca:
+   root:
+      dn: CN=root.ca.{{ domain_name }},OU=CA,O={{ domain_name }},DC={{ domain_name }}
+      keysize: 2048
+      validityDays: {{ validityDays }}
+      pkPassword: none
+      file: root-ca.pem
+
+### Default values and global settings
+defaults:
+      validityDays: {{ validityDays }}
+      pkPassword: none
+      # Set this to true in order to generate config and certificates for
+      # the HTTP interface of nodes
+      httpsEnabled: true
+      reuseTransportCertificatesForHttp: false
+      verifyHostnames: false
+      resolveHostnames: false
+
+
+###
+### Nodes
+###
+#
+# Specify the nodes of your ES cluster here
+#
+nodes:
+{% if 'es_single' in groups %}
+{% for host in groups['es_single'] %}
+{% for node in hostvars[item]['node_name'] %}
+  - name: {{ host }}-{{ node }}
+    dn: CN={{ node }}.{{ domain_name }},OU=Opensearch-node,O={{ domain_name }},DC={{ domain_name }}
+    dns:
+    - {{ hostvars[host]['ansible_hostname'] }}.{{ domain_name }}
+{% if more_domain_name is defined and more_domain_name|length %}
+{% for dns in more_domain_name %}
+    - {{ dns }}
+{% endfor %}
+{% endif %}
+{% endfor %}
+{% endfor %}
+{% endif %}
+
+{% if 'es_cluster' in groups %}
+{% for host in groups['es_cluster'] %}
+  - name: node-{{ hostvars[host]['ansible_hostname'] }}
+    dn: CN={{ hostvars[host]['ansible_hostname'] }}.{{ domain_name }},OU=Opensearch-node,O={{ domain_name }},DC={{ domain_name }}
+    dns:
+    - {{ hostvars[host]['ansible_hostname'] }}.{{ domain_name }}
+{% if more_domain_name is defined and more_domain_name|length %}
+{% for dns in more_domain_name %}
+    - {{ dns }}
+{% endfor %}
+{% endif %}
+{% endfor %}
+{% endif %}
+
+# Kibana node
+{% for host in groups['kibana'] %}
+  - name: {{ hostvars[host]['ansible_hostname'] }}-kibana
+    dn: CN={{ hostvars[host]['ansible_hostname'] }}.{{ domain_name }},OU=Opensearch-dashboards,O={{ domain_name }},DC={{ domain_name }}
+    dns:
+    - {{ hostvars[host]['ansible_hostname'] }}.{{ domain_name }}
+{% if more_domain_name is defined and more_domain_name|length %}
+{% for dns in more_domain_name %}
+    - {{ dns }}
+{% endfor %}
+{% endif %}
+{% endfor %}
+###
+### Clients
+###
+#
+# Specify the clients that shall access your ES cluster with certificate authentication here
+#
+# At least one client must be an admin user (i.e., a super-user). Admin users can
+# be specified with the attribute admin: true
+#
+clients:
+  - name: admin
+    dn: CN=admin.{{ domain_name }},OU=admin,O={{ domain_name }},DC={{ domain_name }}
+    admin: true

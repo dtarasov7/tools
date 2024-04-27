@@ -1,0 +1,31 @@
+input {
+    pipeline {
+        id => "Python"
+        address => python_pipeline
+    }
+}
+
+filter {
+
+    if [log] =~ "\{.+\}" {
+        # у нас в JSON log лежит сообщение о событии - тащим его поля наверх
+        json {
+            skip_on_invalid_json => true
+            source => "log"
+        }
+
+        if "_jsonfailure" in [tag_on_failure] {
+            mutate { add_field => { "[log_parse_failure]" => "true" } }
+        }
+        else {
+            mutate { remove_field => [ "log" ] }
+        }
+    }
+}
+
+output {
+    pipeline {
+        id => "fromPythonToElastic"
+        send_to => elasticsearch_pipeline
+    }
+}

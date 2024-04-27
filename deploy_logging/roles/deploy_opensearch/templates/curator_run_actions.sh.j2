@@ -1,0 +1,10 @@
+#!/bin/bash
+#set -x
+
+WHEREIS_DOCKER=$(whereis docker | awk '{print $2}')
+
+if [ -f "{{ odfe_data_dir }}/curator/log/curator.log" ]; then
+    > {{ odfe_data_dir }}/curator/log/curator.log
+fi
+
+$WHEREIS_DOCKER run --rm --name curator -v {{ odfe_data_dir }}/curator/config.yml:/opt/config.yml -v {{ odfe_data_dir }}/curator/action.yml:/opt/action.yml -v {{ odfe_data_dir }}/curator/log:/var/log -e LC_ALL=C.UTF-8 -e LANG=C.UTF-8 {{ docker['curator_image'] }} --config /opt/config.yml /opt/action.yml

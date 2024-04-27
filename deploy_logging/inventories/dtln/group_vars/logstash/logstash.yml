@@ -1,0 +1,5 @@
+---
+# переменные inventory group_vars/ выше чем inventory group_vars/all, но ниже чем inventory file
+################## basic vars
+#docker_path: /data
+logstash_data_dir: /opt/ans_logstash_deploy

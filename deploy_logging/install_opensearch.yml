@@ -1,0 +1,28 @@
+- name: Deploy Opensearch cluster
+  hosts: opensearch
+  gather_facts: true
+  vars:
+    # up/down/none
+    dc: none
+    # new/copy (copy certs from special folder)/none
+    certificates: none
+    # true/false
+    run_securityadmin: false
+
+  roles:
+    - role: preparatory_tasks
+      tags: preparatory_tasks
+      when: "'opensearch' in group_names"
+    - role: deploy_opensearch
+      tags: deploy_opensearch
+#    - role: preparatory_tasks
+#      tags: preparatory_tasks
+#    - role: deploy_opensearch
+#      when: "'opensearch' in group_names"
+#      tags: deploy_opensearch
+#    - role: deploy_logstash
+#      when: "'logstash' in group_names"
+#      tags: deploy_logstash
+#    - role: deploy_filebeat
+#      when: "'filebeat' in group_names"
+#      tags: deploy_filebeat

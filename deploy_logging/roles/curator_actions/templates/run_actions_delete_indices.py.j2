@@ -1,0 +1,88 @@
+#!/usr/bin/env python
+### ANSIBLE MANAGED
+
+import os
+import docker
+import time
+import requests
+import sys
+import re
+import urllib3
+{% if telegram['send_msg'] is defined and telegram['send_msg'] | default('false') %}
+import platform
+{% endif %}
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+CURATOR_IMAGE = "{{ curator['image'] }}"
+{% if email['send_msg'] is defined and email['send_msg'] | default('false') %}
+MUTT_IMAGE = "{{ mutt['image'] }}"
+SENT_EMAIL_TO = "{{ email['send_to'] }}"
+{% endif %}
+{% if telegram['send_msg'] is defined and telegram['send_msg'] | default('false') %}
+BOT_TOKEN = "{{ telegram['bot_token'] }}"
+CHAT_ID = "{{ telegram['chat_id'] }}"
+API_URL = f'https://api.telegram.org/bot{BOT_TOKEN}/sendMessage'
+CURATOR_HOST = platform.node()
+{% endif %}
+ACTION_LIST = [{% for item in curator_delete_indices %}"{{ item['action'] }}"{% if not loop.last %},{% endif %}{% endfor %}]
+CURRENT_DATE = time.strftime("%Y-%m-%d")
+
+# проверка на авторизацию иначе завершаем выполнение скрипта
+try:
+    run_curl = requests.get('https://{{ ansible_host }}:{{ opensearch['port0'] | default('9200') }}/_cluster/health?pretty=true', auth=('{{ opensearch['admin_user'] | default('admin') }}', '{{ opensearch['admin_passwd'] }}'), verify=False)
+    run_curl.raise_for_status()
+except requests.exceptions.HTTPError as err:
+    raise SystemExit(err)
+    sys.exit()
+
+# выполняем {action}.yml в контейнере {CURATOR_IMAGE}
+docker_client = docker.from_env()
+for action in ACTION_LIST:
+    try:
+        docker_client.containers.run(CURATOR_IMAGE, remove=True, name='curator', volumes=["{{ opensearch_data_dir }}/curator/config.yml:/opt/config.yml",f"{{ opensearch_data_dir }}/curator/{action}.yml:/opt/action.yml","{{ opensearch_data_dir }}/curator/log:/var/log"], environment=["LC_ALL=C.UTF-8","LANG=C.UTF-8","TZ=Europe/Moscow"], command="--config /opt/config.yml /opt/action.yml")
+    except docker.errors.ContainerError:
+        print(f"Something went wrong (ContainerError).")
+        continue
+
+{% if telegram['send_msg'] is defined and telegram['send_msg'] | default('false') %}
+# ищем слово ERROR в строках с текущей датой {CURRENT_DATE}
+pattern = re.compile(f"{CURRENT_DATE}.*.ERROR")
+for lines in open("{{ opensearch_data_dir }}/curator/log/curator.log"):
+    for match in re.finditer(pattern, lines):
+        result = lines
+try:
+    result
+    print(f"Errors in the log file for current date. Check the log file.")
+    try:
+        response = requests.post(API_URL, json={'chat_id': CHAT_ID, 'text': f"🔴 Curator\nХост: {CURATOR_HOST}\nДата: {CURRENT_DATE}\nСообщение: в логах имеются ошибки ERROR за текущую дату. Необходимо проверить curator.log файл."})
+        #print(response.text)
+    except Exception as e:
+        print(e)
+except NameError:
+    print(f"No errors in the log file for current date.")
+{% endif %}
+
+# ищем слово Deleting indices в строках с текущей датой {CURRENT_DATE}
+deleting_indices = re.compile(f"{CURRENT_DATE}.*.Deleting.*.indices")
+indices_list = []
+for ind in open("{{ opensearch_data_dir }}/curator/log/curator.log"):
+    for match in re.finditer(deleting_indices, ind):
+        indice = ( ' '.join(re.findall(r'(?<=\[)[^\]]+', ind)) )
+        indices_list.append(indice)
+        ind_result = ind
+try:
+    ind_result
+    print(f"Deleted indices: {indices_list}.")
+{% if email['send_msg'] is defined and email['send_msg'] | default('false') %}
+    # отправляем письмо для адресатов {SENT_EMAIL_TO}, если есть строки за текущую дату {CURRENT_DATE} со словом *.Deleting.*.indices
+    with open('{{ opensearch_data_dir }}/curator/.muttrc', 'w') as s:
+        s.write(f"set from = 'curator@rshbcloud.ru'\nset realname = 'Curator opensearch'\nset ssl_starttls = no\nset use_from = yes\nset smtp_authenticators='plain'\nset ssl_force_tls = no\nset smtp_url = '{{ email['smtp_url'] }}'")
+    with open('{{ opensearch_data_dir }}/curator/mutt_indices_msg.txt', 'w') as f:
+        f.write(f"Curator host: {CURATOR_HOST}\nDate: {CURRENT_DATE}\nDeleted indices: {indices_list}") 
+    try:
+        docker_client.containers.run(MUTT_IMAGE, remove=True, name='mutt', volumes=["{{ opensearch_data_dir }}/curator/mutt_indices_msg.txt:/msg.txt","{{ opensearch_data_dir }}/curator/.muttrc:/.muttrc"], environment=["TZ=Europe/Moscow"], command=f"mutt -s 'Curator: list of deleted indices' -F /.muttrc -i /msg.txt -- {SENT_EMAIL_TO}")
+    except docker.errors.ContainerError:
+        print(f"Something went wrong (ContainerError).")
+{% endif %}
+except NameError:
+    print(f"No indices for delete.")

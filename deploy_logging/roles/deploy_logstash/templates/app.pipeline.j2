@@ -1,0 +1,65 @@
+input {
+        beats {
+                id => "app"
+                port => {{ logstash['port0'] | default('7001') }}
+        }
+}
+
+filter {
+    mutate { add_field => { "[@metadata][index_suffix]" => "" } }
+
+    if [message] =~ "\A\{.+\}\z" {
+        json {
+            source => "message"
+        }
+        mutate {
+            remove_field => ["message", "[log][offset]"]
+        }
+    }
+
+    if [attrs][product_id] == "gentics-mesh" {
+
+        if [log] =~ "\{.+\}" {
+            # у нас в JSON log лежит сообщение о событии - тащим его поля наверх
+            json {
+                source => "log"
+            }
+            mutate {
+                remove_field => ["log", "[container][labels]", "tags", "stream", "time"]
+            }
+        }
+    }
+
+    else {
+        if [message] =~ "\A\{.+\}\z" {
+
+            # у нас в JSON message лежит сообщение о событии - тащим его поля наверх
+            json {
+                source => "message"
+            }
+            mutate {
+                remove_field => ["message", "_type", "_score", "@version", "offset", "tags", "[agent][ephemeral_id]", "[agent][hostname]","[agent][id]", "[agent][name]", "[agent][type]", "[agent][version]", "[ecs][version]", "[log][offset]", "X-B3-SpanId", "X-B3-TraceId", "X-Span-Export", "stream", "time"]
+                #Удалить пробелы
+                #strip => ["message"]
+            }
+        }
+    }
+
+    if [product_id] {
+        mutate { update => { "[@metadata][index_suffix]" => "-%{product_id}" } }
+    }
+
+    # [attrs][product_id] имеет боллее высокий приоритет чем [product_id]
+    if [attrs][product_id] {
+        mutate { update => { "[@metadata][index_suffix]" => "-%{[attrs][product_id]}" } }
+    }
+}
+
+output {
+    opensearch {
+        hosts => ["${ELASTICSEARCH}"]
+        index => "%{[@metadata][index_suffix]}-%{+YYYY.MM}-000001"
+        user => "${EUSER}"
+        password => "${EPASSWD}"
+    }
+}

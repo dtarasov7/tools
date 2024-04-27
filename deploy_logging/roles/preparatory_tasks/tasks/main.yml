@@ -1,0 +1,144 @@
+---
+- name: Make OpenSearch dir(s)
+  file:
+    path: "{{ item.path }}"
+    state: directory
+    mode: "{{ item.mode }}"
+    owner: "{{ item.user }}"
+    recurse: "{{ item.recurse }}"
+  with_items:
+    - { path: '{{ opensearch_data_dir }}', group: 'docker', user: '{{ svc_user }}', mode: '0775', recurse: 'no' }
+    - { path: '{{ opensearch_data_dir }}/certs', group: 'root', user: '1000', mode: '0644', recurse: 'yes' }
+    - { path: '{{ opensearch_data_dir }}/opensearch-security', group: 'root', user: '1000', mode: '0644', recurse: 'yes' }
+  when: "'es_cluster' in group_names"
+  tags:
+    - make_dir
+    - make_dir_opensearch
+    - opensearch
+
+- name: Make Logstash dir(s)
+  file:
+    path: "{{ item.path }}"
+    state: directory
+    mode: "{{ item.mode }}"
+    owner: "{{ item.user }}"
+  with_items:
+    - { path: '{{ logstash_data_dir }}', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+    - { path: '{{ logstash_data_dir }}/config', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+    - { path: '{{ logstash_data_dir }}/pipeline', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+    - { path: '{{ logstash_data_dir }}/data', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+#    - { path: '{{ logstash_data_dir }}/data/queue', group: 'docker', user: '{{ svc_user }}', mode: '0777' }
+#    - { path: '{{ logstash_data_dir }}/data/dead_letter_queue', group: 'docker', user: '{{ svc_user }}', mode: '0777' }
+  when: "'logstash' in group_names"
+  tags:
+    - make_dir
+    - make_dir_logstash
+    - logstash
+
+- name: Make Filebeat dir(s)
+  file:
+    path: "{{ item.path }}"
+    state: directory
+    mode: "{{ item.mode }}"
+    owner: "{{ item.user }}"
+  with_items:
+    - { path: '{{ filebeat_data_dir }}', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+    - { path: '{{ filebeat_data_dir }}/filebeat', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+    - { path: '{{ filebeat_data_dir }}/filebeat/inputs.d', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+    - { path: '{{ filebeat_data_dir }}/filebeat.data', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+  when: "'filebeat' in group_names"
+  tags:
+    - make_dir
+    - make_dir_filebeat
+    - filebeat
+
+- name: Copy managed scripts to Logstash host(s)
+  copy:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    mode: "{{ item.mode }}"
+    owner: "{{ item.user }}"
+  with_items:
+    - { src: 'down', dest: '{{ logstash_data_dir }}/down', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+    - { src: 'logs', dest: '{{ logstash_data_dir }}/logs', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+    - { src: 'rst', dest: '{{ logstash_data_dir }}/rst', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+    - { src: 'up', dest: '{{ logstash_data_dir }}/up', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+    - { src: 'up_l', dest: '{{ logstash_data_dir }}/up_l', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+    - { src: 'reload_logstash.sh', dest: '{{ logstash_data_dir }}/reload_logstash.sh', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+  when: "'logstash' in group_names"
+  tags:
+    - copy_files
+    - copy_files_logstash
+    - logstash
+
+- name: Copy managed scripts to Filebeat host(s)
+  copy:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    mode: "{{ item.mode }}"
+    owner: "{{ item.user }}"
+  with_items:
+    - { src: 'down', dest: '{{ filebeat_data_dir }}/down', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+    - { src: 'logs', dest: '{{ filebeat_data_dir }}/logs', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+    - { src: 'rst', dest: '{{ filebeat_data_dir }}/rst', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+    - { src: 'up', dest: '{{ filebeat_data_dir }}/up', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+    - { src: 'up_l', dest: '{{ filebeat_data_dir }}/up_l', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+  when: "'filebeat' in group_names"
+  tags:
+    - copy_files
+    - copy_files_fb
+    - filebeat
+
+- name: Copy managed scripts/files to OpenSearch host(s)
+  copy:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    mode: "{{ item.mode }}"
+    owner: "{{ item.user }}"
+  with_items:
+    - { src: 'down', dest: '{{ opensearch_data_dir }}/down', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+    - { src: 'logs', dest: '{{ opensearch_data_dir }}/logs', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+    - { src: 'rst', dest: '{{ opensearch_data_dir }}/rst', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+    - { src: 'up', dest: '{{ opensearch_data_dir }}/up', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+    - { src: 'up_l', dest: '{{ opensearch_data_dir }}/up_l', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+    - { src: 'yq_linux_amd64', dest: '/usr/bin/yq', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+  when: "'es_cluster' in group_names"
+  tags:
+    - copy_files
+    - copy_files_opensearch
+    - opensearch
+
+- name: Deploy managed scripts for OpenSearch
+  template:
+    src: "{{ item.src }}"
+    dest: "{{ opensearch_data_dir }}/{{ item.dest }}"
+    mode: "{{ item.mode }}"
+    owner: "{{ item.user }}"
+  with_items:
+    - { src: 'add_tenants_roles_users_mapping.sh.j2', dest: 'add_tenants_roles_users_mapping.sh', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+    - { src: 'add_tenants_roles_users_mapping.yml.j2', dest: 'add_tenants_roles_users_mapping.yml.example', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+  when: "'es_cluster' in group_names"
+  tags:
+    - deploy_scripts
+    - opensearch
+
+- name: Install required Python library to nodes
+  pip:
+    name:
+      - passlib
+      - bcrypt
+  when: "'opensearch' in group_names"
+  tags: install_python_lib
+
+- name: Install required Python library to ansible host
+  pip:
+    name:
+      - passlib
+      - bcrypt
+  delegate_to: 127.0.0.1
+  tags: install_python_lib
+
+- name: Setup logging for bash
+  import_tasks: bash_log.yml
+  when: bash_log is defined and bash_log|bool
+  tags: bash_log

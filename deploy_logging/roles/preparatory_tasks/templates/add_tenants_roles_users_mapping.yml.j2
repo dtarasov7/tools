@@ -1,0 +1,38 @@
+---
+#tenants:
+#- name: "test-tenant-1"
+#  description: "Test tenant-1"
+#- name: "test-tenant-2"
+#  description: "Test_tenant-2_description"
+
+#users:
+#- name: "user-1"
+#  password: "12345678"
+#- name: "user-2"
+#  password: "12345678"
+
+#roles:
+#- name: "test_role"
+#  cluster_permissions: ["kibana_all_read"]
+#  index_permissions:
+#  - index_patterns: ["varshb*"]
+#    allowed_actions: ["write"]
+#  - index_patterns: ["*.kibana*"]
+#    allowed_actions: ["read"]
+#  tenant_permissions:
+#  - tenant_patterns: ["test-tenant-1", "test-tenant-2"]
+#    allowed_actions: ["kibana_all_write"]
+
+#rolesmapping:
+#- op: "add"
+#  path: "/test_role"
+#  value: {users: ["user-1","user-2"],"backend_roles": []}
+#- op: "add"
+#  path: "/kibana_user"
+#  value: {users: ["user-2"]}
+
+#index_pattern:
+#- tenant: test-tenant-1
+#  index_name: ["odfe-elastic*","varshb*"]
+#- tenant: test-tenant-2
+#  index_name: ["odfe-elastic*"]

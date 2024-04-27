@@ -1,0 +1,23 @@
+[all]
+dev-sz-srv-app03 ansible_host=10.80.
+dev-sz-mob-app02 ansible_host=10.80.
+
+#[es_single]
+#dev-sz-srv-app03 node_name='["dev-sz-srv-app03"]' # вариант с 1 нодой на хосте
+#o4n02 node_name='["node02", "node03"]' # вариант с 2мя нодами на хосте
+
+[opensearch:children]
+es_cluster
+kibana
+
+[es_cluster]
+dev-sz-srv-app03
+
+[kibana]
+dev-sz-srv-app03
+
+[logstash]
+dev-sz-srv-app03
+
+[filebeat]
+dev-sz-mob-app02

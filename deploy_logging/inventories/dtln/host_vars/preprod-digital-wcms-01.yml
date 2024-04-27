@@ -1,0 +1,25 @@
+---
+# переменные inventory host_vars/ выше inventory group_vars/all, inventory group_vars/ и переменных в inventory file
+#docker_path: /data/docker
+
+# Objects for logging
+bash_log: false # logging bash users commands
+#bash_path_to_logs: /var/log/bash/bash.log # path to log file on host
+
+# Filebeat: path to log files on host
+#path_to_logs:
+#    - dc: '/data/logs:/data/logs' # docker-compose volumes mapping
+#    - dc: '/logs:/logs' # docker-compose volumes mapping
+
+docker:
+# version
+     filebeat_ver: '7.16.2'
+     logstash_ver: '7.16.2'
+# port(s)
+     filebeat_port: '5066'
+     logstash_port0: '7001'
+     logstash_port1: '7002'
+     logstash_port2: '9601'
+# docker registry
+     docker_reg_logstash: 'opensearchproject/'
+     docker_reg_filebeat: 'docker.elastic.co/beats'

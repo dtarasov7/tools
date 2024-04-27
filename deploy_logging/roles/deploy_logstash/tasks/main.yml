@@ -1,0 +1,68 @@
+---
+- name: Copy pipelines
+  copy:
+    src: "{{ item.src }}"
+    dest: "{{ logstash_data_dir }}/pipeline/{{ item.dest }}"
+    mode: "{{ item.mode }}"
+    owner: "{{ item.user }}"
+  with_items:
+    - { src: 'gentics-mesh.pipeline', dest: 'gentics-mesh.pipeline', group: 'docker', user: '{{ svc_user }}', mode: '0664' }
+    - { src: 'logstash.pipeline', dest: 'logstash.pipeline', group: 'docker', user: '{{ svc_user }}', mode: '0664' }
+    - { src: 'nginx.pipeline', dest: 'nginx.pipeline', group: 'docker', user: '{{ svc_user }}', mode: '0664' }
+    - { src: 'other.pipeline', dest: 'other.pipeline', group: 'docker', user: '{{ svc_user }}', mode: '0664' }
+    - { src: 'python.pipeline', dest: 'python.pipeline', group: 'docker', user: '{{ svc_user }}', mode: '0664' }
+    - { src: 'pipelines.yml.debug', dest: 'pipelines.yml.debug', group: 'docker', user: '{{ svc_user }}', mode: '0664' }
+#    - { src: 'bash.pipeline', dest: 'bash.pipeline', group: 'docker', user: '{{ svc_user }}', mode: '0664' }
+
+- name: Deploy Logstash templates
+  template:
+    src: "{{ item.src }}"
+    dest: "{{ logstash_data_dir }}/{{ item.dest }}"
+    mode: "{{ item.mode }}"
+    owner: "{{ item.user }}"
+  with_items:
+    - { src: 'logstash.yml.j2', dest: 'config/logstash.yml', group: 'docker', user: '{{ svc_user }}', mode: '0755' }
+    - { src: 'pipelines.yml.j2', dest: 'config/pipelines.yml', group: 'docker', user: '{{ svc_user }}', mode: '0755' }
+    - { src: 'elasticoutput.pipeline.j2', dest: 'pipeline/elasticoutput.pipeline', group: 'docker', user: '{{ svc_user }}', mode: '0664' }
+    - { src: 'main.pipeline.j2', dest: 'pipeline/main.pipeline', group: 'docker', user: '{{ svc_user }}', mode: '0664' }
+    - { src: 'app.pipeline.j2', dest: 'pipeline/app.pipeline', group: 'docker', user: '{{ svc_user }}', mode: '0664' }
+    - { src: 'debug.pipeline.j2', dest: 'pipeline/debug.pipeline', group: 'docker', user: '{{ svc_user }}', mode: '0664' }
+  tags: deploy_logstash_templates
+ 
+- name: Deploy docker_compose.yml
+  template:
+    src:  docker-compose.yaml.j2
+    dest: "{{ logstash_data_dir }}/docker-compose.yaml"
+    owner: "{{ svc_user }}"
+    group: docker
+    mode: '0664'
+    backup: yes
+
+- name: Get the cert from an OpenSearch port
+  shell: "echo -n | openssl s_client -connect localhost:{{ opensearch['port0'] | default('9200') }} | sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' > {{ logstash_data_dir }}/config/opensearch_ca_{{ ansible_hostname }}_logstash.cer"
+#  when: dc == 'up'
+  tags: get_opensearch_cert
+
+- name: Docker-compose pull
+  shell: docker-compose pull
+  args:
+    chdir: '{{ logstash_data_dir }}'
+  when: dc == 'up'
+
+- name: Docker-compose up
+  shell: docker-compose up -d
+  args:
+    chdir: '{{ logstash_data_dir }}'
+  when: dc == 'up'
+
+- name: Docker-compose restart
+  shell: "docker-compose rm -f -s logstash && docker-compose up -d logstash"
+  args:
+    chdir: '{{ logstash_data_dir }}'
+  when: dc == 'restart'
+
+- name: Docker-compose down
+  shell: docker-compose down
+  args:
+    chdir: '{{ logstash_data_dir }}'
+  when: dc == 'down'

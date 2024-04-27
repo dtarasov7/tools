@@ -1,0 +1,13 @@
+---
+# переменные inventory host_vars/ выше inventory group_vars/all, inventory group_vars/ и переменных в inventory file
+# docker path
+#docker_path: /data/docker
+
+# Objects for logging
+#bash_log: true # logging bash users commands
+#bash_path_to_logs: /var/log/bash/bash.log # path to log file on host
+
+# Filebeat: path to log files on host
+path_to_logs:
+    - dc: '/data/crft/version/log:/data/crft/version/log' # docker-compose volumes mapping
+#    - dc: '/logs:/logs' # docker-compose volumes mapping

@@ -1,0 +1,13 @@
+/opt/wcms-portal/logs/access.log /opt/wcms-portal/logs/nginx_error.log /opt/wcms-portal/logs/access-json.log {
+compress
+dateext
+daily
+rotate 14
+missingok
+notifempty
+create 664 root root
+sharedscripts
+postrotate
+    /usr/bin/docker exec nginx-wcms /usr/sbin/nginx -s reopen > /dev/null
+    endscript
+}

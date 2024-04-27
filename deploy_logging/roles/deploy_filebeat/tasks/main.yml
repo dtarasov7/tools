@@ -1,0 +1,58 @@
+---
+- name: "FileBeat: deploy Filebeat templates"
+  template:
+    src: "{{ item.src }}"
+    dest: "{{ filebeat_data_dir }}/{{ item.dest }}"
+    mode: "{{ item.mode }}"
+    owner: "{{ item.user }}"
+  with_items:
+    - { src: 'filebeat.yml.j2', dest: 'filebeat/filebeat.yml', group: 'docker', user: '{{ svc_user }}', mode: '0755' }
+  tags: deploy_fb_conf
+
+- name: "FileBeat: deploy external configuration files for bash logs"
+  template:
+    src:  inputs_bash_log.yml.j2
+    dest: "{{ filebeat_data_dir }}/filebeat/inputs.d/bash_log.yml"
+  when: bash_log is defined and bash_log|bool
+  tags: deploy_inputs
+
+- name: "FileBeat: delete external configuration files for bash logs"
+  file:
+    path: "{{ filebeat_data_dir }}/filebeat/inputs.d/bash_log.yml"
+    state: absent
+  when: bash_log is not defined or not bash_log
+  tags: deploy_inputs
+
+- name: "FileBeat: deploy docker_compose.yml"
+  template:
+    src:  docker-compose.yaml.j2
+    dest: "{{ filebeat_data_dir }}/docker-compose.yaml"
+    owner: "{{ svc_user }}"
+    group: docker
+    mode: '0664'
+    backup: yes
+  tags: deploy_fb_dc
+
+- name: "FileBeat: docker-compose pull"
+  shell: docker-compose pull
+  args:
+    chdir: '{{ filebeat_data_dir }}'
+  when: dc == 'up'
+
+- name: "FileBeat: docker-compose up"
+  shell: docker-compose up -d
+  args:
+    chdir: '{{ filebeat_data_dir }}'
+  when: dc == 'up'
+
+- name: "FileBeat: docker-compose restart"
+  shell: "docker-compose rm -f -s filebeat && docker-compose up -d filebeat"
+  args:
+    chdir: '{{ filebeat_data_dir }}'
+  when: dc == 'restart'
+
+- name: "FileBeat: docker-compose down"
+  shell: docker-compose down
+  args:
+    chdir: '{{ filebeat_data_dir }}'
+  when: dc == 'down'

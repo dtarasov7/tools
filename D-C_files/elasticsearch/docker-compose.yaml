@@ -1,0 +1,25 @@
+version: '3'
+
+services:
+  elasticsearch_exporter:
+    image: justwatch/elasticsearch_exporter:${ES_EXP_VER}
+    hostname: ${HOSTNAME}
+    container_name: elasticsearch_exporter
+    command:
+      - "--es.uri=http://${ES_USER_PASSWD01}${ES_HOST_01}:${ES_PORT_01},http://${ES_USER_PASSWD02}${ES_HOST_02}:${ES_PORT_02},http://${ES_USER_PASSWD03}${ES_HOST_03}:${ES_PORT_03},http://${ES_USER_PASSWD04}${ES_HOST_04}:${ES_PORT_04}"
+      - '--es.indices'
+      - '--es.snapshots'
+      - '--es.shards'
+      - '--es.indices_settings'
+    restart: unless-stopped
+    ports:
+      - ${ES_EXP_PORT}:9114
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "app,product_id"
+    labels:
+      app: "victoriametrics"
+      product_id: "vm-elasticsearchexp"

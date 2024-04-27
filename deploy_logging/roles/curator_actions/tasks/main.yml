@@ -1,0 +1,186 @@
+---
+- name: Curator - make dirs for data
+  file:
+    path: "{{ item.path }}"
+    state: directory
+    mode: "{{ item.mode }}"
+    owner: "{{ item.user }}"
+  with_items:
+    - { path: '{{ opensearch_data_dir }}/curator', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+    - { path: '{{ opensearch_data_dir }}/curator/log', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+  tags:
+    - make_dir_curator
+    - deploy_curator_config
+
+- name: Curator - deploy main config
+  template:
+    src: config.yml.j2
+    dest: "{{ opensearch_data_dir }}/curator/config.yml"
+    mode: 0755
+    owner: "{{ svc_user }}"
+  tags:
+    - deploy_curator_config
+
+- name: "Curator - deploy action for delete snapshots older than {{ curator_delete_snapshots }} days"
+  template:
+    src: "{{ item.src }}"
+    dest: "{{ opensearch_data_dir }}/curator/{{ item.dest }}"
+    mode: "{{ item.mode }}"
+    owner: "{{ item.user }}"
+  with_items:
+    - { src: 'del_snapshots.yml.j2', dest: 'delete_snapshots.yml', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+  when: opensearch_snapshot|default('false')|bool
+  tags:
+    - deploy_action_delete_snapshots
+
+- name: Curator - deploy action for delete old indices
+  template:
+    src: delete_indices.yml.j2
+    dest: "{{ opensearch_data_dir }}/curator/{{ item['action'] }}.yml"
+    mode: 0775
+    owner: "{{ svc_user }}"
+  with_items: "{{ curator_delete_indices }}"
+  when: curator_delete_indices is defined
+  tags:
+    - deploy_action_delete_indices
+
+#- name: Curator - deploy bash-script for delete old snapshots
+#  template:
+#    src: run_actions_delete_snapshots.sh.j2
+#    dest: "{{ opensearch_data_dir }}/curator/run_actions_delete_snapshots.sh"
+#    mode: 0775
+#    owner: "{{ svc_user }}"
+#  when: opensearch_snapshot|default('false')|bool
+#  tags:
+#    - deploy_curator_script
+
+- name: Curator - deploy scripts for delete old snapshots
+  template:
+    src: "{{ item.src }}"
+    dest: "{{ opensearch_data_dir }}/curator/{{ item.dest }}"
+    mode: 0755
+    owner: "{{ svc_user }}"
+  when: opensearch_snapshot|default('false')|bool
+  with_items:
+    - { src: 'run_actions_delete_snapshots.sh.j2', dest: 'run_actions_delete_snapshots.sh', user: '{{ svc_user }}' }
+    - { src: 'run_actions_delete_snapshots.py.j2', dest: 'run_actions_delete_snapshots.py', user: '{{ svc_user }}' }
+  tags:
+    - deploy_curator_script
+
+#- name: Curator - deploy bash-script for delete old indices
+#  template:
+#    src: run_actions_delete_indices.sh.j2
+#    dest: "{{ opensearch_data_dir }}/curator/run_actions_delete_indices.sh"
+#    mode: 0775
+#    owner: "{{ svc_user }}"
+#  when: curator_delete_indices is defined
+#  tags:
+#    - deploy_curator_script
+
+- name: Curator - deploy scripts for delete old indices
+  template:
+    src: "{{ item.src }}"
+    dest: "{{ opensearch_data_dir }}/curator/{{ item.dest }}"
+    mode: 0755
+    owner: "{{ item.user }}"
+  when: curator_delete_indices is defined
+  with_items:
+    - { src: 'dry_run_actions_delete_indices.py.j2', dest: 'dry_run_actions_delete_indices.py', user: '{{ svc_user }}' }
+    - { src: 'run_actions_delete_indices.py.j2', dest: 'run_actions_delete_indices.py', user: '{{ svc_user }}' }
+    - { src: 'dry_run_actions_delete_indices.sh.j2', dest: 'dry_run_actions_delete_indices.sh', user: '{{ svc_user }}' }
+    - { src: 'run_actions_delete_indices.sh.j2', dest: 'run_actions_delete_indices.sh', user: '{{ svc_user }}' }
+  tags:
+    - deploy_actions
+    - deploy_curator_script
+    - deploy_action_delete_indices
+
+- name: Curator - deploy bash-script for delete old snapshots
+  template:
+    src: "{{ item.src }}"
+    dest: "{{ opensearch_data_dir }}/curator/{{ item.dest }}"
+    mode: 0755
+    owner: "{{ item.user }}"
+  when: opensearch_snapshot|bool
+  with_items:
+    - { src: 'dry_run_actions_delete_snapshots.sh.j2', dest: 'dry_run_actions_delete_snapshots.sh', user: '{{ svc_user }}' }
+  tags:
+    - deploy_actions
+    - deploy_curator_script
+
+- name: Curator - docker image pull
+  shell: "docker pull {{ curator['image'] }}"
+  when: (opensearch_snapshot|bool and opensearch_snapshot_script_cron is defined) or (curator_delete_indices is defined and curator_delete_indices_script_cron is defined)
+  tags:
+    - curator_script_cron
+
+# - name: Mutt - deploy config settings
+#   template:
+#     src: muttrc.j2
+#     dest: "{{ opensearch_data_dir }}/curator/.muttrc"
+#     mode: 0755
+#     owner: "{{ svc_user }}"
+#   when: mutt['send_msg'] is defined and mutt['send_msg'] | default('false')
+#   tags:
+#     - deploy_mutt_conf
+
+- name: Curator - add script for delete old snapshots to crontab
+  cron:
+    cron_file: '/etc/crontab'
+    user: 'root'
+    name: "Run Curator actions for delete old snapshots"
+    minute: "{{ curator_delete_snapshot_script_cron['minute'] }}"
+    hour: "{{ curator_delete_snapshot_script_cron['hour'] }}"
+    #job: "sh {{ opensearch_data_dir }}/curator/run_actions_delete_snapshots.sh"
+    job: "python3 {{ opensearch_data_dir }}/curator/run_actions_delete_snapshots.py"
+    state: present
+  when: opensearch_snapshot|bool and opensearch_snapshot_script_cron is defined
+  notify: restart crond
+  tags:
+    - curator_script_cron
+
+- name: Curator - remove script for delete old snapshots from crontab
+  cron:
+    cron_file: '/etc/crontab'
+    user: 'root'
+    name: "Run Curator actions for delete old snapshots"
+    state: absent
+  when: opensearch_snapshot|bool and opensearch_snapshot_script_cron is undefined
+  notify: restart crond
+  tags:
+    - curator_script_cron
+
+- name: Curator - add script for delete old indices to crontab
+  cron:
+    cron_file: '/etc/crontab'
+    user: 'root'
+    name: "Run Curator actions for delete old indices"
+    minute: "{{ curator_delete_indices_script_cron['minute'] }}"
+    hour: "{{ curator_delete_indices_script_cron['hour'] }}"
+    job: "python3 {{ opensearch_data_dir }}/curator/run_actions_delete_indices.py"
+    state: present
+  when: curator_delete_indices is defined and curator_delete_indices_script_cron is defined
+  notify: restart crond
+  tags:
+    - curator_script_cron
+
+- name: Curator - remove script for delete old indices from crontab
+  cron:
+    cron_file: '/etc/crontab'
+    user: 'root'
+    name: "Run Curator actions for delete old indices"
+    state: absent
+  when: curator_delete_indices is undefined and curator_delete_indices_script_cron is undefined
+  notify: restart crond
+  tags:
+    - curator_script_cron
+
+- name: Curator - add logrotate for deleting old logs
+  blockinfile:
+    path: "/etc/logrotate.d/{{ item.name }}"
+    block: "{{ item.conf }}"
+    create: true
+    state: present
+  loop: "{{ curator_logrotate_log }}"
+  when: curator_logrotate_log is defined
+  tags:
+    - curator_logrotate

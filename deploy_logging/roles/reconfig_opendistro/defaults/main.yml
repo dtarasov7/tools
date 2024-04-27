@@ -1,0 +1,28 @@
+---
+### es
+# bootstrap_memoryLock: along with the memlock settings below, disables swapping
+bootstrapMemoryLock: 'true'
+network_host: '0.0.0.0' # required if not using the demo Security configuration
+network_bind_host: '0.0.0.0' # the network address(es) to which the node should bind in order to listen for incoming connections
+es_java_opt: # minimum and maximum Java heap size, recommend setting both to 50% of system RAM (use Mb)
+     min: '2048m'
+     max: '2048m'
+ulimits:
+     memlock_soft: '-1'
+     memlock_hard: '-1'
+     nofile_soft: '65536' # maximum number of open files for the Elasticsearch user, set to at least 65536 on modern systems 
+     nofile_hard: '65536'
+
+### kibana.yml
+server_host: '0.0.0.0'
+
+################## generate certs
+validityDays: '730' # days
+# main domain name
+domain_name: rshbcloud.ru
+# additional domain name
+more_domain_name: [] # example ['myrshb', '"*.rshbcloud.ru"']
+
+################## restart cluster vars
+es_disable_allocation: '{"transient":{"cluster.routing.allocation.enable":"none"}}'
+es_enable_allocation: '{"transient":{"cluster.routing.allocation.enable":"all"}}'

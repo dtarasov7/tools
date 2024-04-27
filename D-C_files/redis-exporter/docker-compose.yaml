@@ -1,0 +1,27 @@
+version: '3'
+
+services:
+  redis_exporter:
+    image: oliver006/redis_exporter:${REDIS_EXP_VER:-v1.35.1}
+    container_name: redis_exporter
+    hostname: $HOSTNAME
+#    network_mode: "host"
+    ports:
+      - ${REDIS_EXP_PORT:-9121}:9121
+    restart: unless-stopped
+    command:
+      - '--include-system-metrics'
+      - '--ping-on-connect'
+      - '--redis-only-metrics'
+      - '--redis.addr=redis://${REDIS_HOST}:${REDIS_PORT:-6379}'
+#      - '--redis.user=${REDIS_USER}'
+#      - '--redis.password=${REDIS_PASSWORD}'
+    labels:
+      app: "victoriametrics"
+      product_id: "vm-redisexporter"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "product_id"

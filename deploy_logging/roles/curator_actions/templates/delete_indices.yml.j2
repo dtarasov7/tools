@@ -1,0 +1,36 @@
+---
+# Remember, leave a key empty if there is no value.  None will be a string,
+# not a Python "NoneType"
+#
+# Also remember that all examples have 'disable_action' set to True.  If you
+# want to use this action as a template, be sure to set this to False after
+# copying it.
+actions:
+  1:
+    action: delete_indices
+    description: >-
+      Delete '{{ item['value'] }}' indices {{ item['direction'] | default('older') }} than {{ item['unit_count'] }} {{ item['unit'] }} (based on index name).
+    options:
+      ignore_empty_list: True
+      disable_action: False
+    filters:
+    - filtertype: pattern
+      kind: {{ item['kind'] | default('prefix') }}
+      value: '{{ item['value'] }}'
+      exclude:
+    - filtertype: age
+      source: name
+      direction: {{ item['direction'] | default('older') }}
+{% if item['timestring'] is undefined %}
+{% if item['unit'] == 'months' %}
+      timestring: '%Y.%m'
+{% endif %}
+{% if item['unit'] == 'days' %}
+      timestring: '%Y.%m.%d'
+{% endif %}
+{% else %}
+      timestring: '{{ item['timestring'] }}'
+{% endif %}
+      unit: {{ item['unit'] }}
+      unit_count: {{ item['unit_count'] }}
+      exclude: {{ item['exclude'] | default('False') }}

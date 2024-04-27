@@ -1,0 +1,30 @@
+input {
+    pipeline {
+        id => "readNginx"
+        address => nginx_pipeline
+    }
+}
+
+filter {
+    #исходное сообщение нам более не нужно
+    #mutate { remove_field => [ "message" ] }
+
+    #Достаем дату
+    date {
+        locale => "en"
+        match => [ "time_local_ms", "dd/MMM/yyyy:HH:mm:ss.SSS Z" ]
+        target => "@timestamp"
+    }
+    mutate { remove_field => [
+            "time_local_ms",
+            "nginx"
+        ]
+    }
+}
+
+output {
+    pipeline {
+        id => "fromNginxToElastic"
+        send_to => elasticsearch_pipeline
+    }
+}

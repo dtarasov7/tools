@@ -1,0 +1,24 @@
+#https://github.com/martin-helmich/prometheus-nginxlog-exporter
+listen:
+  port: ${NGINXLOG_EXP_PORT}
+  address: "0.0.0.0"
+
+consul:
+  enable: false
+
+namespaces:
+  - name: nginx_название_лог_файла
+    metrics_override:
+      prefix: "nginx"
+    namespace_label: "vhost"
+#    parser: "json"
+    format: "$remote_addr - $remote_user [$time_local] \"$request\" $status $body_bytes_sent \"$http_referer\" \"$http_user_agent\" \"$http_x_forwarded_for\""
+    source:
+      files:
+        - /mnt/nginxlogs/название_лог_файла
+    labels:
+      service: "nginx_название_лог_файла"
+      hostname: "${HOSTNAME}"
+    histogram_buckets: [.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10]
+
+#Если есть необходимость парсить еще один лог файл. то добавляем аналогичную доп секцию

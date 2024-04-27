@@ -1,0 +1,31 @@
+process_names:
+  - name: "{{.Comm}}"
+    comm:
+    - httpd
+    - nginx
+    - postgres
+    - java
+    - systemd
+    - named-pkcs11
+    - rsyslogd
+    - ns-slapd
+    - sudo
+    - su
+    - containerd
+    - containerd-shim
+    - sssd_nss
+    - sssd_be
+    - dockerd
+    - docker-containe
+    - docker-proxy
+    - systemd-journal
+    - bash
+    - sshd
+    - node
+    - vmagent-prod
+    - blackbox_exporter
+    - cadvisor
+    - filebeat
+    - beat-exporter
+    - node_exporter
+    - process-exporter

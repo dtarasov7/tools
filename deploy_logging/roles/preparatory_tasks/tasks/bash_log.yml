@@ -1,0 +1,38 @@
+---
+- name: "Bash-log: install rsyslog"
+  package:
+    name: rsyslog
+    state: present
+  tags: install_rsyslog
+
+- name: "Bash-log: add PROMPT_COMMAND Environment Variable"
+  copy:
+    src: bash_log.sh
+    dest: /etc/profile.d
+  tags: config_bashrc
+
+- name: "Bash-log: insert/update rsyslog rotation config"
+  blockinfile:
+    path: /etc/rsyslog.d/bash.conf
+    create: yes
+    block: |
+      local6.*    {{ bash_path_to_logs }}
+  notify:
+    - restart rsyslog
+  tags: config_rsyslog
+
+- name: "Bash-log: configure logrotate to rotate bash.log"
+  blockinfile:
+    path: /etc/logrotate.d/bash_log
+    create: yes
+    block: |
+      {{ bash_path_to_logs }} {
+              weekly
+              rotate 3
+              size 10M
+              compress
+              dateext
+              delaycompress
+              missingok
+      }
+  tags: logrotate_rsyslog

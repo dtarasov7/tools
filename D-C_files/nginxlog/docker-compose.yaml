@@ -1,0 +1,25 @@
+version: '3'
+
+services:
+  nginxlog:
+    image: quay.io/martinhelmich/prometheus-nginxlog-exporter:${NGINXLOG_EXP_VER}
+    container_name: nginxlog
+    hostname: ${HOSTNAME}
+    restart: unless-stopped
+    volumes:
+      #  путь к каталогу на хосте, где наход€тс€ файлы с логами
+      - /var/log/nginx/:/mnt/nginxlogs/
+      - ./nginxlogexporter/prometheus-nginxlog-exporter.yml:/etc/prometheus-nginxlog-exporter.yml
+    command:
+      - "-config-file=/etc/prometheus-nginxlog-exporter.yml"
+    ports:
+      - ${NGINXLOG_EXP_PORT}:4040
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "app,product_id"
+    labels:
+      app: "victoriametrics"
+      product_id: "vm-nginxlog"

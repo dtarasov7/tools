@@ -1,0 +1,12 @@
+input {
+        beats {
+                port => {{ logstash['port0'] | default('7001') }}
+        }
+}
+
+filter {
+}
+
+output {
+    stdout { codec => rubydebug }
+}

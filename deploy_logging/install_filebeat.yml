@@ -1,0 +1,12 @@
+- name: Deploy Filebeat
+  hosts: filebeat
+  gather_facts: true
+  vars:
+    # up/down/restart/none
+    dc: none
+
+  roles:
+    - role: preparatory_tasks
+      tags: preparatory_tasks
+    - role: deploy_filebeat
+      tags: deploy_filebeat

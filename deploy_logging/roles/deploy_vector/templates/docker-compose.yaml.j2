@@ -1,0 +1,57 @@
+version: '3'
+
+services:
+{% if 'vector_agent' in groups and inventory_hostname in groups['vector_agent'] %}
+  vector-agent:
+{% endif %}
+{% if 'vector_aggregator' in groups and inventory_hostname in groups['vector_aggregator'] %}
+  vector-aggregator:
+{% endif %}
+    image: "{{ vector_image }}"
+{% if 'vector_agent' in groups and inventory_hostname in groups['vector_agent'] %}
+    container_name: vector-agent
+{% endif %}
+{% if 'vector_aggregator' in groups and inventory_hostname in groups['vector_aggregator'] %}
+    container_name: vector-aggregator
+{% endif %}
+    hostname: $HOSTNAME    
+    restart: unless-stopped
+    environment:
+      - TZ=Europe/Moscow
+{% if vector_extra_hosts is defined %}
+{% for h in vector_extra_hosts %}
+    extra_hosts:
+      - {{ h }}
+{% endfor %}
+{% endif %}
+    ports:
+      - {{ vector_port | default('8686') }}:8686
+      - {{ vector_port_metrics | default('9598') }}:9598 # metrics
+{% if 'vector_aggregator' in groups and inventory_hostname in groups['vector_aggregator'] %}
+      - {{ vector_aggregator_port | default('6000') }}:{{ vector_aggregator_port | default('6000') }}
+{% endif %}
+    volumes:
+      - ./vector.data:/var/lib/vector
+      - ./config:/etc/vector
+{% if vector_extra_volumes is defined %}
+{% for v in vector_extra_volumes %}
+      - {{ v }}
+{% endfor %}
+{% endif %}
+    environment:
+      - TZ=Europe/Moscow
+      # more parameters https://vector.dev/docs/reference/cli/#environment-variables
+{% if vector_environment is defined %}
+{% for e in vector_environment %}
+      - {{ e }}
+{% endfor %}
+{% endif %}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "es_index_name"
+    labels:
+      app: "vector"
+      es_index_name: "vector"

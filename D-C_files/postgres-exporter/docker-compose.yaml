@@ -1,0 +1,24 @@
+version: '3'
+
+services:
+  postgres_exporter:
+    image: weaponry/pgscv/0.7.5
+    hostname: "$HOSTNAME"
+    container_name: pgscv
+    ports:
+      - ${POSTGRES_EXP_PORT:-9890}:9890
+    environment:
+      - PGSCV_LISTEN_ADDRESS=0.0.0.0:9890
+      - PGSCV_DISABLE_COLLECTORS=${PGSCV_DISABLE_COLLECTORS:-system,postgres/settings}
+      - POSTGRES_DSN_${POSTGRES_DSN_NAME}=${POSTGRES_DSN}
+#      - POSTGRES_DSN_<NAME>=postgresql://<PG_USER>:<PG_PASSWORD>@<PG_HOST>:<PG_PORT>/<DB_NAME>?sslmode=disable
+    restart: unless-stopped
+    labels:
+      app: "victoriametrics"
+      product_id: "vm-postgresexporter"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "product_id"

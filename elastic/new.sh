@@ -1,0 +1,1 @@
+curl -X PUT "http://127.0.0.1:9200/rshb-dev-employee/_mapping" -H "Content-Type: application/json" -d'{"properties": {"region":{"type":"keyword", "store":true},"boundaryKey":{"type":"keyword","store":"true"}}}'

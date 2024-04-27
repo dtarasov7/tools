@@ -1,0 +1,234 @@
+---
+# Perform a rolling restart of the elasticsearch nodes and wait for the cluster
+# to stabilize before continuing processing nodes.
+
+- name: Set the es_host for the first host
+  set_fact:
+    es_host: "{{ groups.es_cluster[1] }}"
+  when: "inventory_hostname == groups.es_cluster[0]"
+  tags:
+    - set_host
+    - disable_shard_allocation
+    - node_restart
+
+- name: Set the es_host for the remaining hosts
+  set_fact:
+    es_host: "{{ groups.es_cluster[0] }}"
+  when: "inventory_hostname != groups.es_cluster[0]"
+  tags:
+    - set_host
+    - disable_shard_allocation
+    - node_restart
+
+- name: "Set the {{ es_host }} ip-address"
+  set_fact:
+    es_host_ip: "{{ hostvars[es_host]['ansible_host'] }}"
+  tags:
+    - set_host
+    - disable_shard_allocation
+    - node_restart
+    
+#- debug:
+#    msg: "{{ es_ip }}"
+#  tags:
+#    - set_host
+
+- name: Enable shard allocation for the cluster
+  uri:
+    url: "https://{{ ansible_host }}:{{ docker['odfe_port0'] | default('9200') }}/_cluster/settings"
+    method: PUT
+    user: admin
+    password: "{{ admin_passwd }}"
+    validate_certs: no
+    body_format: json
+    body: "{{ es_enable_allocation }}"
+  register: enable_result
+  until: enable_result.json.acknowledged == True
+  retries: 200
+  delay: 3
+  changed_when: enable_result.json.acknowledged == True
+  tags:
+    - enable_shard_allocation
+
+- name: Check that cluster status_code = 200, status GREEN and number_of_nodes > 1 befor restart cluster
+  uri:
+    url: "https://{{ ansible_host }}:{{ docker['odfe_port0'] | default('9200') }}/_cluster/health"
+    method: GET
+    return_content: yes
+    follow_redirects: none
+    user: admin
+    password: "{{ admin_passwd }}"
+    validate_certs: no
+    status_code: 200
+    body_format: json
+  run_once: true
+  register: check_status
+  until:
+    - check_status.status == 200
+    - check_status.json.status == "green"
+    - check_status.json.number_of_nodes > 1
+  retries: 500
+  delay: 15
+  tags:
+#    - enable_shard_allocation
+    - check_cluster_status
+
+- name: Disable shard allocation for the cluster
+  uri:
+    url: "https://{{ ansible_host }}:{{ docker['odfe_port0'] | default('9200') }}/_cluster/settings"
+    method: PUT
+    user: admin
+    password: "{{ admin_passwd }}"
+    validate_certs: no
+    body_format: json
+    body: "{{ es_disable_allocation }}"
+#    status_code: 200
+  register: disable_result
+  until: disable_result.json.acknowledged == True
+  retries: 200
+  delay: 3
+  changed_when: disable_result.json.acknowledged == True
+  tags:
+    - disable_shard_allocation
+
+#- debug:
+#    msg: "{{ disable_result }}"
+#  tags:
+#    - test
+
+- name: Stop indexing new data and perform a synced flush
+  uri:
+    url: "https://{{ ansible_host }}:{{ docker['odfe_port0'] | default('9200') }}/_flush/synced"
+    method: POST
+    user: admin
+    password: "{{ admin_passwd }}"
+    validate_certs: no
+    status_code: "200, 409"
+  register: flush_result
+  tags:
+    - disable_shard_allocation
+    - synced_flush
+
+#- debug:
+#    msg: "{{ flush_result }}"
+#  tags:
+#    - synced_flush
+
+- name: Stop node (docker-compose down)
+  shell: "{{ whereis_dc }}docker-compose down"
+  args:
+    chdir: '{{ odfe_data_dir}}'
+  tags:
+    - set_host
+    - disable_shard_allocation
+    - synced_flush
+    - node_restart
+
+- name: Wait for all shards to be reallocated before starting the node
+  uri: 
+    url: "https://{{ es_host_ip }}:{{ docker['odfe_port0'] | default('9200') }}/_cluster/health"
+    method: GET
+    user: admin
+    password: "{{ admin_passwd }}"
+    validate_certs: no
+  register: response
+  until: "response.json.relocating_shards == 0"
+  retries: 20
+  delay: 15
+  tags:
+    - set_host
+    - disable_shard_allocation
+    - synced_flush
+    - node_restart
+    - wait_shards_reallocated
+
+- name: Start node (docker-compose up)
+  shell: "{{ whereis_dc }}docker-compose up -d"
+  args:
+    chdir: '{{ odfe_data_dir}}'
+  tags:
+    - disable_shard_allocation
+    - synced_flush
+    - node_restart
+    - wait_shards_reallocated
+
+- name: Wait for ODFE node to come back up
+  wait_for:
+    port: "{{ docker['odfe_port2'] | default('9300') }}"
+    delay: 35
+  tags:
+    - disable_shard_allocation
+    - synced_flush
+    - node_restart
+    - wait_shards_reallocated
+    - wait_node
+
+- name: Wait for ODFE http to come back up
+  wait_for:
+    port: "{{ docker['odfe_port0'] | default('9200') }}"
+    delay: 5
+  tags:
+    - disable_shard_allocation
+    - synced_flush
+    - node_restart
+    - wait_shards_reallocated
+    - wait_node
+
+- name: Wait for cluster health to return to YELLOW or GREEN
+  uri:
+    url: "https://{{ ansible_host }}:{{ docker['odfe_port0'] | default('9200') }}/_cluster/health"
+    method: GET
+    user: admin
+    password: "{{ admin_passwd }}"
+    validate_certs: no
+  register: response
+  until: "response.json.status == 'yellow' or response.json.status == 'green'"
+  retries: 500
+  delay: 15
+  tags:
+    - disable_shard_allocation
+    - synced_flush
+    - node_restart
+    - wait_shards_reallocated
+    - wait_node
+
+- name: Enable shard allocation for the cluster
+  uri:
+    url: "https://{{ ansible_host }}:{{ docker['odfe_port0'] | default('9200') }}/_cluster/settings"
+    method: PUT
+    user: admin
+    password: "{{ admin_passwd }}"
+    validate_certs: no
+    body_format: json
+    body: "{{ es_enable_allocation }}"
+  register: response
+  until: "response.json.acknowledged == true"
+  retries: 15
+  delay: 15
+  changed_when: response.json.acknowledged == True
+  tags:
+    - enable_shard_allocation
+    - node_restart
+
+- name: Wait cluster status_code = 200, status GREEN and number_of_nodes > 1
+  uri:
+    url: "https://{{ ansible_host }}:{{ docker['odfe_port0'] | default('9200') }}/_cluster/health"
+    method: GET
+    return_content: yes
+    follow_redirects: none
+    user: admin
+    password: "{{ admin_passwd }}"
+    validate_certs: no
+    status_code: 200
+    body_format: json
+  run_once: true
+  register: cluster_status
+  until:
+    - cluster_status.status == 200
+    - cluster_status.json.status == "green"
+    - cluster_status.json.number_of_nodes > 1
+  retries: 15
+  delay: 30
+  tags:
+    - enable_shard_allocation
+    - node_restart

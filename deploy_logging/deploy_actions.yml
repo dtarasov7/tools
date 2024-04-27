@@ -1,0 +1,6 @@
+- name: Deploy curator actions
+  hosts: es_cluster
+
+  roles:
+    - role: curator_actions
+      tags: curator_actions

@@ -1,0 +1,31 @@
+input {
+  dead_letter_queue {
+    path => "/var/lib/logstash/data/dead_letter_queue/"
+    #commit_offsets => true 
+    pipeline_id => "elasticsearch_pipeline"" 
+  }
+}
+
+filter {
+  mutate {
+    remove_field => "[context][response]"
+  }
+}
+
+output {
+   opensearch {
+        # The list of Elasticsearch nodes to connect to. The events are distributed to these nodes in round robin order. If one node becomes unreachable, the event is automatically sent to another node.
+        hosts => [{% for host in groups['es_cluster'] %}"{{ hostvars[host]['ansible_host'] }}:{{ opensearch['port0'] | default('9200') }}"{% if not loop.last %},{% endif %}{% endfor %}]
+        #The index name to write events to when you’re using daily indices.
+        #index => "%{[@metadata][index_suffix]}"
+        #The basic authentication username for connecting to Elasticsearch.
+        user => "${EUSER}"
+        #The basic authentication password for connecting to Elasticsearch.
+        password => "${EPASSWD}"
+        #Configuration options for SSL parameters like the certificate authority to use for HTTPS-based connections.
+        ssl => true
+        #cacert => "/full/path/to/root-ca.pem"
+        cacert => "/usr/share/logstash/config/ca-logstash.cer"
+        ssl_certificate_verification => false
+    }
+}

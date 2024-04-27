@@ -1,0 +1,213 @@
+---
+- name: Generate certs - CA, admin, ES-nodes and Kibana
+  import_tasks: get_certs.yml
+  when: generate_new_certs | default('false') | bool
+  tags: deploy_certs
+
+- name: Deploy ES templates
+  template:
+    src: "{{ item.src }}"
+    dest: "{{ odfe_data_dir }}/{{ item.dest }}"
+    mode: "{{ item.mode }}"
+    owner: "{{ item.user }}"
+  with_items:
+    - { src: 'internal_users.yml.j2', dest: 'internal_users.yml', group: 'docker', user: '{{ svc_user }}', mode: '0600' }
+    - { src: 'opensearch.yml.j2', dest: 'elasticsearch.yml', group: 'docker', user: '{{ svc_user }}', mode: '0600' }
+  when: "'es_cluster' in group_names"
+  tags: redeploy_es_configs
+
+- name: Deploy Kibana templates
+  template:
+    src: "{{ item.src }}"
+    dest: "{{ odfe_data_dir }}/{{ item.dest }}"
+    mode: "{{ item.mode }}"
+    owner: "{{ item.user }}"
+  with_items:
+    - { src: 'opensearch_dashboards.yml.j2', dest: 'custom-kibana.yml', group: 'docker', user: '{{ svc_user }}', mode: '0600' }
+  when: "'kibana' in group_names"
+  tags: redeploy_kibana_configs
+
+# - name: Make docker volumes
+#   file:
+#     path: "{{ item.path }}"
+#     state: directory
+#     mode: "{{ item.mode }}"
+#     owner: "{{ item.user }}"
+#     recurse: "{{ item.recurse }}"
+#   with_items:
+#     - { path: '{{ docker_path }}/opensearch-cluster-data', group: 'root', user: '1000', mode: '0755', recurse: 'yes' }
+#   when: "'es_cluster' in group_names"
+
+- name: Deploy docker_compose.yml
+  template:
+    src:  docker-compose.yaml.j2
+    dest: "{{ odfe_data_dir }}/docker-compose.yaml"
+    owner: "{{ svc_user }}"
+    group: docker
+    mode: '0664'
+  tags: test
+
+- name: Set the es_host for the first host
+  set_fact:
+    es_host: "{{ groups.es_cluster[1] }}"
+  when: "inventory_hostname == groups.es_cluster[0]"
+
+- name: Set the es_host for the remaining hosts
+  set_fact:
+    es_host: "{{ groups.es_cluster[0] }}"
+  when: "inventory_hostname != groups.es_cluster[0]"
+
+- name: Check that shard allocation is enable befor restart cluster
+  uri:
+    url: "https://{{ ansible_host }}:{{ docker['odfe_port0'] | default('9200') }}/_cluster/settings"
+    method: PUT
+    user: admin
+    password: "{{ admin_passwd }}"
+    validate_certs: no
+    body_format: json
+    body: "{{ es_enable_allocation }}"
+
+- name: Check that cluster status_code = 200, status GREEN and number_of_nodes > 1 befor restart cluster
+  uri:
+    url: "https://{{ ansible_host }}:{{ docker['odfe_port0'] | default('9200') }}/_cluster/health"
+    method: GET
+    return_content: yes
+    follow_redirects: none
+    user: admin
+    password: "{{ admin_passwd }}"
+    validate_certs: no
+    status_code: 200
+    body_format: json
+  run_once: true
+  register: check_status
+  until:
+    - check_status.status == 200
+    - check_status.json.status == "green"
+    - check_status.json.number_of_nodes > 1
+  retries: 500
+  delay: 15
+#  when: "'es_cluster' in group_names and dc == 'up'"
+  tags: check_status
+
+- name: Disable shard allocation for the cluster
+  uri:
+    url: "https://{{ ansible_host }}:{{ docker['odfe_port0'] | default('9200') }}/_cluster/settings"
+    method: PUT
+    user: admin
+    password: "{{ admin_passwd }}"
+    validate_certs: no
+    body_format: json
+    body: "{{ es_disable_allocation }}"
+
+- name: Stop indexing new data and perform a synced flush
+  uri:
+    url: "https://{{ ansible_host }}:{{ docker['odfe_port0'] | default('9200') }}/_flush/synced"
+    method: POST
+    user: admin
+    password: "{{ admin_passwd }}"
+    validate_certs: no
+    status_code: "200, 409"
+
+- name: Stop node (docker-compose down)
+  shell: docker-compose down
+  args:
+    chdir: '{{ odfe_data_dir}}'
+#  when: dc == 'up'
+
+- name: Wait for all shards to be reallocated before starting the node
+  uri: 
+    url: "https://{{ es_host }}:{{ docker['odfe_port0'] | default('9200') }}/_cluster/health"
+    method: GET
+    user: admin
+    password: "{{ admin_passwd }}"
+    validate_certs: no
+  register: response
+  until: "response.json.relocating_shards == 0"
+  retries: 20
+  delay: 15
+
+- name: Start node (docker-compose up)
+  shell: docker-compose up -d
+  args:
+    chdir: '{{ odfe_data_dir}}'
+
+- name: Wait for elasticsearch node to come back up
+  wait_for:
+    port: "{{ docker['odfe_port2'] | default('9300') }}"
+    delay: 35
+
+- name: Wait for elasticsearch http to come back up
+  wait_for:
+    port: "{{ docker['odfe_port0'] | default('9200') }}"
+    delay: 5
+
+- name: Wait for cluster health to return to YELLOW or GREEN
+  uri:
+    url: "https://{{ ansible_host }}:{{ docker['odfe_port0'] | default('9200') }}/_cluster/health"
+    method: GET
+    user: admin
+    password: "{{ admin_passwd }}"
+    validate_certs: no
+  register: response
+  until: "response.json.status == 'yellow' or response.json.status == 'green'"
+  retries: 500
+  delay: 15
+
+- name: Enable shard allocation for the cluster
+  uri:
+    url: "https://{{ ansible_host }}:{{ docker['odfe_port0'] | default('9200') }}/_cluster/settings"
+    method: PUT
+    user: admin
+    password: "{{ admin_passwd }}"
+    validate_certs: no
+    body_format: json
+    body: "{{ es_enable_allocation }}"
+  register: response
+  until: "response.json.acknowledged == true"
+  retries: 10
+  delay: 15
+
+- name: Wait cluster status_code = 200, status GREEN and number_of_nodes > 1
+  uri:
+    url: "https://{{ ansible_host }}:{{ docker['odfe_port0'] | default('9200') }}/_cluster/health"
+    method: GET
+    return_content: yes
+    follow_redirects: none
+    user: admin
+    password: "{{ admin_passwd }}"
+    validate_certs: no
+    status_code: 200
+    body_format: json
+  run_once: true
+  register: cluster_status
+  until:
+    - cluster_status.status == 200
+    - cluster_status.json.status == "green"
+    - cluster_status.json.number_of_nodes > 1
+  retries: 10
+  delay: 30
+#  when: "'es_cluster' in group_names and dc == 'up'"
+  tags: check_status
+
+#- debug:
+#    msg: "{{ cluster_status_code.json | json_query('status') }}"
+#  tags: check_status
+
+- block:
+    - name: Run securityadmin.sh to apply new configurations
+      command: docker exec opensearch-node /bin/sh /usr/share/elasticsearch/plugins/opendistro_security/tools/securityadmin.sh -cd /usr/share/elasticsearch/plugins/opendistro_security/securityconfig/ -icl -nhnv -cacert /usr/share/elasticsearch/config/root-ca.pem -cert /usr/share/elasticsearch/config/admin.pem -key /usr/share/elasticsearch/config/admin.key
+      no_log: true
+      run_once: true
+      register: exec_result
+#  when: "'es_cluster' in group_names and cluster_status.status == 200 and cluster_status.json.status == 'green' and cluster_status.json.number_of_nodes > 1"
+      when: "cluster_status.status == 200 and cluster_status.json.status == 'green' and cluster_status.json.number_of_nodes > 1"
+      tags: check_status
+
+    - debug:
+        msg: "Securityadmin.sh completed successfully!"
+      run_once: true
+#  when: "exec_result is search('Done with success') and 'es_cluster' in group_names and cluster_status.status == 200 and cluster_status.json.status == 'green' and cluster_status.json.number_of_nodes > 1"
+      when: "exec_result is search('Done with success') and cluster_status.status == 200 and cluster_status.json.status == 'green' and cluster_status.json.number_of_nodes > 1"
+      tags: check_status
+
+  when: run_securityadmin|bool

@@ -1,0 +1,41 @@
+plugins.security.disabled: false
+plugins.security.ssl.transport.enabled: true
+plugins.security.ssl.transport.pemcert_filepath: {{ ansible_hostname }}.pem
+plugins.security.ssl.transport.pemkey_filepath: {{ ansible_hostname }}.key
+plugins.security.ssl.transport.pemtrustedcas_filepath: root-ca.pem
+plugins.security.ssl.transport.enforce_hostname_verification: false
+plugins.security.ssl.http.enabled: true
+plugins.security.ssl.http.pemcert_filepath: {{ ansible_hostname }}_http.pem
+plugins.security.ssl.http.pemkey_filepath: {{ ansible_hostname }}_http.key
+plugins.security.ssl.http.pemtrustedcas_filepath: root-ca.pem
+plugins.security.allow_default_init_securityindex: false
+plugins.security.authcz.admin_dn:
+  - 'CN=admin.{{ domain_name }},OU=admin,O={{ domain_name }},DC={{ domain_name }}'
+plugins.security.nodes_dn:
+{% for host in groups['es_cluster'] %}
+{% if hostvars[host]['certificate_ansible_hostname'] is defined %}
+  - 'CN={{ hostvars[host]['certificate_ansible_hostname'] }}.{{ domain_name }},OU=Opensearch-node,O={{ domain_name }},DC={{ domain_name }}'
+{% else %}
+  - 'CN={{ hostvars[host]['ansible_hostname'] }}.{{ domain_name }},OU=Opensearch-node,O={{ domain_name }},DC={{ domain_name }}'
+{% endif %}
+{% endfor %}
+  - 'CN=*.{{ domain_name }},OU=Opensearch-node,O={{ domain_name }},DC={{ domain_name }}'
+  - '/CN=.*regex/'
+{% if more_domain_name is defined and more_domain_name|length %}
+{% for dns in more_domain_name %}
+  - 'CN=*.{{ dns }},OU=Opensearch-node,O={{ dns }},DC={{ dns }}'
+{% endfor %}
+{% endif %}
+{% if opensearch_snapshot|bool %}
+path.repo: [{% for host in groups['es_cluster'] %}"/mnt/{{ hostvars[host]['ansible_hostname'] }}"{% if not loop.last %}, {% endif %}{% endfor %}]
+{% endif %}
+plugins.security.audit.type: internal_opensearch
+plugins.security.enable_snapshot_restore_privilege: true
+plugins.security.check_snapshot_restore_write_privileges: true
+cluster.routing.allocation.disk.threshold_enabled: false
+opendistro_security.audit.config.disabled_rest_categories: NONE
+opendistro_security.audit.config.disabled_transport_categories: NONE
+plugins.security.restapi.roles_enabled: ["all_access", "security_rest_api_access"]
+plugins.security.system_indices.enabled: true
+plugins.security.system_indices.indices: [".opendistro-alerting-config", ".opendistro-alerting-alert*", ".opendistro-anomaly-results*", ".opendistro-anomaly-detector*", ".opendistro-anomaly-checkpoints", ".opendistro-anomaly-detection-state", ".opendistro-reports-*", ".opendistro-notifications-*", ".opendistro-notebooks", ".opendistro-asynchronous-search-response*"]
+plugins.security.allow_unsafe_democertificates: false

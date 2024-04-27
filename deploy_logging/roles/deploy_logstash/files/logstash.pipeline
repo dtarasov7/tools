@@ -1,0 +1,35 @@
+input {
+    pipeline {
+        id => "readLogstash"
+        address => logstash_pipeline
+    }
+}
+
+filter {
+    if [message] =~ "\A\{.+\}\z" {
+        json {
+            skip_on_invalid_json => true
+            source => "message"
+        }
+
+        if "_jsonfailure" in [tag_on_failure] {
+            mutate { add_field => { "[message_parse_failure]" => "true" } }
+        } else {
+            mutate { rename => { "log" => "message" } }
+        }
+
+        #Достаем дату
+        date {
+            locale => "en"
+            match => [ "time", "ISO8601" ]
+            target => "@timestamp"
+        }
+    }
+}
+
+output {
+    pipeline {
+        id => "fromLogstashToElastic"
+        send_to => elasticsearch_pipeline
+    }
+}

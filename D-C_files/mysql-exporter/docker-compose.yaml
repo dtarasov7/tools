@@ -1,0 +1,40 @@
+version: '3'
+
+services:
+  mysqld-exporter:
+    image: prom/mysqld-exporter:${MYSQL_EXP_VER}
+    container_name: mysqld-exporter
+    hostname: ${HOSTNAME}
+    ports:
+      - ${MYSQL_EXP_PORT:-9104}:9104
+#    volumes:
+    command:
+#      - '--config.my-cnf=/usr/local/etc/.mysqld_exporter.cnf'
+      - '--collect.global_status'
+      - '--collect.info_schema.innodb_metrics'
+      - '--collect.auto_increment.columns'
+      - '--collect.info_schema.processlist'
+      - '--collect.binlog_size'
+      - '--collect.info_schema.tablestats'
+      - '--collect.global_variables'
+      - '--collect.info_schema.query_response_time'
+      - '--collect.info_schema.userstats'
+      - '--collect.info_schema.tables'
+      - '--collect.perf_schema.tablelocks'
+      - '--collect.perf_schema.file_events'
+      - '--collect.perf_schema.eventswaits'
+      - '--collect.perf_schema.indexiowaits'
+      - '--collect.perf_schema.tableiowaits'
+      - '--collect.slave_status'
+    environment:
+      - DATA_SOURCE_NAME=${DB_USER_NAME}:${DB_USER_PASSWD}@(${DB_HOST}:${DB_PORT})/${DB_NAME}
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "product_id"
+    labels:
+      app: "victoriametrics"
+      product_id: "vm-mysqlexp"

@@ -1,0 +1,52 @@
+---
+# переменные inventory host_vars/ выше inventory group_vars/all, inventory group_vars/ и переменных в inventory file
+# docker path
+#docker_path: /data/docker
+
+# Objects for logging
+#bash_log: true # logging bash users commands
+#bash_path_to_logs: /var/log/bash/bash.log # path to log file on host
+
+# Filebeat: path to log files on host
+#path_to_logs:
+#    - dc: '/var/log/bash.log:/var/log/bash.log' # docker-compose volumes mapping
+#    - dc: '/logs:/logs' # docker-compose volumes mapping
+
+################## indices and actions for delete indices older than X seconds, minutes, hours, days, weeks, months, or years (based on index name).
+# расписание cron, если разное, то указать для каждого хоста в host_vars, если единое, то тут.
+curator_delete_indices_script_cron:
+    minute: '30'
+    hour: '1'
+# отправлять сообщение об ошибке при выполнение action
+#mutt:
+#    send_msg: true
+#    smtp_url: 'smtp://smtp.go.rshbank.ru:25'
+#    send_to: "kalininov@rshb.ru"
+# удалять индексы старше n-дней или n-месяцев
+curator_delete_indices:
+# Примеры:
+#    - action: delete_other_indices # action script name
+#      kind: regex # prefix (logstash-), suffix (-prod), timestring (%Y.%m.%d) or regex (^a-|^b-|^c-) (default: prefix)
+#      value: other-
+#      direction: older # older or younger (default: older)
+#      timestring: '%Y.%m' # if unit=months '%Y.%m', if unit=days '%Y.%m.%d' or set manually
+#      unit: months # seconds, minutes, hours, days, weeks, months, or years
+#      unit_count: 1
+#      exclude: False # True (the filter will remove matches from the actionable list) or False (only matches will be kept in the actionable list) (default: False)
+#    - action: delete_other-and-odfe_indices
+#      kind: regex
+#      value: ^(other|odfe-filebeat|odfe-kibana|odfe-elasticsearch|dtln-prod-odfe-logstash|odfe-logstash)-*
+#      unit: months
+#      unit_count: 1
+    - action: delete_security-auditlog_indices
+      value: security-auditlog-
+      unit: days
+      unit_count: 14
+    - action: delete_crshb_indices
+      value: crshb-
+      unit: days
+      unit_count: 2
+    - action: delete_inbox-message_indices
+      value: inbox-message-
+      unit: days
+      unit_count: 2

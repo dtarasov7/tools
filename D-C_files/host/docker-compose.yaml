@@ -1,0 +1,91 @@
+version: '3.5'
+
+services:
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:${CADVISOR_VER}
+    hostname: ${HOSTNAME}
+    container_name: cadvisor
+    volumes:
+      - ./cadvisor/web.htpasswd:/etc/web.htpasswd
+      - /:/rootfs:ro
+      - /var/run:/var/run:rw
+      - /sys:/sys:ro
+      - ${DOCKER_PATH}/docker:/var/lib/docker:ro
+      - /cgroup:/cgroup:ro
+    command:
+      - "-http_auth_realm=localhost"
+      - "-http_auth_file=/etc/web.htpasswd"
+      - "-allow_dynamic_housekeeping=false"
+      - "-global_housekeeping_interval=30s"
+      - "-housekeeping_interval=5s"
+      - "-docker_only=true"
+      - "-storage_duration=30s"
+      - "-store_container_labels=false"
+    ports:
+      - ${CADVISOR_PORT}:8080
+    restart: unless-stopped
+    labels:
+      product_id: "vm-cadvisor"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "product_id"
+
+  node_exporter:
+    image: prom/node-exporter:${NODE_VER}
+    container_name: nodeexporter
+    hostname: ${HOSTNAME}
+    user: root
+    privileged: true
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+      - /:/host:ro
+      - ./nodeExporter/web-config.yml:/etc/web-config.yml
+    command:
+      - '--web.config=/etc/web-config.yml'
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--path.rootfs=/host'
+      - '--collector.filesystem.ignored-mount-points=^/(sys|proc|dev|run|var/lib/docker/.+)($$|/)'
+      - '--collector.filesystem.ignored-fs-types=^(autofs|binfmt_misc|bpf|cgroup2?|configfs|debugfs|devpts|devtmpfs|fusectl|hugetlbfs|mqueue|nsfs|overlay|proc|procfs|pstore|rpc_pipefs|securityfs|selinuxfs|squashfs|sysfs|tracefs|tmpfs)$$'
+      - '--collector.netstat.fields=(.*)'
+      - '--collector.vmstat.fields=(.*)'
+      - '--collector.interrupts'
+    restart: unless-stopped
+    ports:
+      - ${NODE_PORT}:9100
+    labels:
+      product_id: "vm-nodeexporter"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "product_id"
+
+  process_exporter:
+    image: ncabatoff/process-exporter:${PROC_VER}
+    container_name: process_exporter
+    hostname: ${HOSTNAME}
+    privileged: true
+    volumes:
+      - /proc:/host/proc:ro
+      - ./processExporter/process-exporter.yml:/config/process-exporter.yml
+    command:
+      - '-config.path=/config/process-exporter.yml'
+      - '--procfs=/host/proc'
+    ports:
+      - ${PROC_PORT}:9256
+    restart: unless-stopped
+    labels:
+      product_id: "vm-processexporter"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "product_id"

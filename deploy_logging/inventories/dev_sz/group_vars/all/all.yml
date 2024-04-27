@@ -1,0 +1,42 @@
+---
+# переменные inventory group_vars/all ниже чем inventory group_vars/ и переменные в inventory file
+################## basic
+ansible_connection: ssh
+ansible_user: ansible 
+ansible_python_interpreter: /usr/libexec/platform-python
+svc_user: "{{ ansible_user }}"
+ansible_become: yes
+ansible_become_user: root
+#ansible_become_password: '{{ become_password }}'
+ansible_become_method: sudo
+product_environment: dtln-sz
+
+################## main components
+opensearch:
+     image: opensearchproject/opensearch
+     version: '2.3.0'
+     port0: '9200' #for REST
+     port1: '9600' #required for Performance Analyzer
+     port2: '9300' #for nodes communication
+     admin_user: admin
+     admin_passwd: admin
+opensearch_dashboards:
+     image: opensearchproject/opensearch-dashboards
+     version: '2.3.0'
+     port: '5601'
+     kibanaserver_passwd: kibanaserver
+logstash:
+     image: opensearchproject/logstash-oss-with-opensearch-output-plugin
+     version: '7.16.2'
+     port0: '7001'
+     port1: '7002'
+     port2: '9601'
+filebeat:
+     image: 10.80.4.6:1000/filebeat-oss
+     version: '7.16.2'
+     port: '5066'
+curator:           
+     image: '10.80./curator-opensearch:5.8.4.1'
+mutt:
+     image: '10.80.1000/mutt:2'
+

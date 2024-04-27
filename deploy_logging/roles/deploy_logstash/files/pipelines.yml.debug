@@ -1,0 +1,5 @@
+# Configure all the pipeline components
+# Общий вход для нарезки по обработчикам
+- pipeline.id: debug_pipeline
+  path.config: "/usr/share/logstash/pipeline/debug.pipeline"
+  pipeline.ecs_compatibility: disabled

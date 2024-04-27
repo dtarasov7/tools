@@ -1,0 +1,48 @@
+version: '3'
+
+#networks:
+#  odfe-net:
+
+services:
+  filebeat:
+    image: "{{ filebeat['image'] }}:{{ filebeat['version'] }}"
+    container_name: filebeat
+    hostname: "{{ ansible_hostname }}"    
+    user: root
+    command: filebeat -e -strict.perms=false
+    restart: always
+    environment:
+      - TZ=Europe/Moscow
+    ports:
+      - {{ filebeat['port'] | default('5066') }}:5066
+    volumes:
+      - ./filebeat/inputs.d:/usr/share/filebeat/inputs.d:ro
+      - ./filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+      - ./filebeat.data:/usr/share/filebeat/data
+{% if docker_path is defined %}
+      - {{ docker_path }}/containers:/var/lib/docker/containers
+{% else %}
+      - /var/lib/docker/containers:/var/lib/docker/containers
+{% endif %}
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+{% if path_to_logs is defined %}
+{% for path in path_to_logs %}
+{% if path['dc'] is defined and path['dc']|length %}
+      - {{ path['dc'] }}
+{% endif %}
+{% endfor %}
+{% endif %}
+{% if bash_log is defined and bash_log|bool %}
+      - {{ bash_path_to_logs }}:{{ bash_path_to_logs }}
+{% endif %}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "es_index_name"
+    labels:
+      app: "filebeat-oss"
+      es_index_name: "{{ product_environment }}-filebeat"
+#    networks:
+#      - odfe-net

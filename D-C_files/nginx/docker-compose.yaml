@@ -1,0 +1,24 @@
+version: '3.1'
+
+services:
+  nginxlog:
+    image: "nginx/nginx-prometheus-exporter:${NGINX_EXP_VER}"
+    container_name: nginxexporter
+    restart: unless-stopped
+    environment:
+      - TZ=Europe/Moscow
+    command:
+      - "-nginx.scrape-uri=<http://ip:port/path>"
+    # Режим Host используется для того, чтобы запросы от  экспортера к Ngix шли с 
+    # IP хоста а не с ip докер контейнера
+    network_mode: host
+#    ports:
+#      - ${NGINX_EXP_PORT}:${NGINX_EXP_PORT}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    labels:
+      app: "victoriametrics"
+      product_id: "nginxexp-prom"

@@ -1,0 +1,94 @@
+version: '3'
+
+{% if 'es_cluster' in group_names and docker_path_data is not defined %}
+volumes:
+  opensearch-cluster-data: {}
+{% endif %}
+
+services:
+  opensearch-node:
+    image: "{{ opensearch['image'] }}:{{ opensearch['version'] }}"
+    container_name: opensearch-node
+    hostname: "{{ ansible_hostname }}"
+    environment:
+      - cluster.name={{ cluster_name }}
+      - node.name={{ ansible_hostname }}
+      - discovery.seed_hosts={% for host in groups['es_cluster'] %}{{ hostvars[host]['ansible_host'] }}{% if not loop.last %},{% endif %}{% endfor %}{{ ' ' }}
+      - cluster.initial_cluster_manager_nodes={% for host in groups['es_cluster'] %}{{ hostvars[host]['ansible_host'] }}{% if not loop.last %},{% endif %}{% endfor %}{{ ' ' }}
+      - bootstrap.memory_lock={{ bootstrapMemoryLock }}
+      - "OPENSEARCH_JAVA_OPTS=-Xms{{ es_java_opt['min'] }} -Xmx{{ es_java_opt['max'] }}"
+      - network.host={{ network_host }}
+      - network.bind_host={{ network_bind_host }}
+      - network.publish_host={{ ansible_host }}
+    ulimits:
+      memlock:
+        soft: {{ ulimits['memlock_soft'] }}
+        hard: {{ ulimits['memlock_hard'] }}
+      nofile:
+        soft: {{ ulimits['nofile_soft'] }}
+        hard: {{ ulimits['nofile_hard'] }}
+    volumes:
+{% if docker_path_data is defined %}
+      - {{ docker_path_data }}:/usr/share/opensearch/data
+{% else %}
+      - opensearch-cluster-data:/usr/share/opensearch/data
+{% endif %}
+{% if opensearch_snapshot|bool %}
+{% for host in groups['es_cluster'] %}
+      - {{ hostvars[host]['opensearch_snapshot_path'] }}:/mnt/{{ hostvars[host]['ansible_hostname'] }}
+{% endfor %}
+{% endif %}
+      - ./certs/root-ca.pem:/usr/share/opensearch/config/root-ca.pem
+      - ./certs/node-{{ ansible_hostname }}.key:/usr/share/opensearch/config/{{ ansible_hostname }}.key
+      - ./certs/node-{{ ansible_hostname }}.pem:/usr/share/opensearch/config/{{ ansible_hostname }}.pem
+      - ./certs/node-{{ ansible_hostname }}_http.key:/usr/share/opensearch/config/{{ ansible_hostname }}_http.key
+      - ./certs/node-{{ ansible_hostname }}_http.pem:/usr/share/opensearch/config/{{ ansible_hostname }}_http.pem
+      - ./certs/admin.pem:/usr/share/opensearch/config/admin.pem
+      - ./certs/admin.key:/usr/share/opensearch/config/admin.key
+      - ./opensearch.yml:/usr/share/opensearch/config/opensearch.yml
+#      - ./opensearch-security:/usr/share/opensearch/config/opensearch-security
+      - ./opensearch-security/internal_users.yml:/usr/share/opensearch/config/opensearch-security/internal_users.yml
+    ports:
+      - {{ opensearch['port0'] | default('9200') }}:9200
+      - {{ opensearch['port1'] | default('9600') }}:9600
+      - {{ opensearch['port2'] | default('9300') }}:9300
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "product_id"
+    labels:
+      app: "opensearch"
+      product_id: "opensearch-es"
+#    networks:
+#      - odfe-net
+
+  opensearch-dashboards:
+    image: "{{ opensearch_dashboards['image'] }}:{{ opensearch_dashboards['version'] }}"
+    container_name: opensearch-dashboards
+    hostname: "{{ ansible_hostname }}"
+    ports:
+      - {{ opensearch_dashboards['port'] | default('5601') }}:5601
+    expose:
+      - "{{ opensearch_dashboards['port'] }}"
+    environment:
+      OPENSEARCH_URL: https://{{ ansible_host }}:{{ opensearch['port0'] | default('9200') }}
+      OPENSEARCH_HOSTS: '[{% for host in groups['es_cluster'] %}"https://{{ hostvars[host]['ansible_host'] }}:{{ opensearch['port0'] | default('9200') }}"{% if not loop.last %},{% endif %}{% endfor %}]'
+    volumes:
+      - ./certs/root-ca.pem:/usr/share/opensearch-dashboards/config/root-ca.pem
+      - ./certs/{{ ansible_hostname }}-kibana_http.key:/usr/share/opensearch-dashboards/config/{{ ansible_hostname }}-kibana_http.key
+      - ./certs/{{ ansible_hostname }}-kibana_http.pem:/usr/share/opensearch-dashboards/config/{{ ansible_hostname }}-kibana_http.pem
+      - ./opensearch_dashboards.yml:/usr/share/opensearch-dashboards/config/opensearch_dashboards.yml
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "product_id"
+    labels:
+      app: "opensearch"
+      product_id: "opensearch-dashboards"
+#    networks:
+#      - odfe-net

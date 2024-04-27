@@ -1,0 +1,33 @@
+version: '3'
+
+services:
+
+  keycloak:
+#    image: quay.io/keycloak/keycloak:21.0.2
+    image: kc:21.0.2-03
+    hostname: dev-kc
+    container_name: kc
+    env_file:
+      - ./keycloak-postgres.env
+    environment:
+      TZ: "Europe/Moscow"
+#    volumes:
+#        - ./conf/standalone-ha.xml:/opt/jboss/keycloak/standalone/configuration/standalone-ha.xml
+#        - ./keycloak_metrics/keycloak-metrics-spi-2.1.0.jar:/opt/jboss/keycloak/standalone/deployments/keycloak-metrics-spi-2.1.0.jar
+#      - ./deployments:/opt/jboss/keycloak/standalone/deployments
+    #command: -b 0.0.0.0 -bmanagement 0.0.0.0
+    command: start --optimized
+    ports:
+      - 8080:8080
+      - 8443:8443
+#      - 9990:9990
+    restart: always
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "app,product_id"
+    labels:
+      app: "keycloak"
+      product_id: "keycloak"

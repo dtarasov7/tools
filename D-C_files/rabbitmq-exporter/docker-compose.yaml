@@ -1,0 +1,23 @@
+version: '3'
+
+services:
+  rabbitmq_exporter:
+    image: kbudde/rabbitmq-exporter:${RABBIT_EXP_VER}
+    container_name: rabbitmq_exporter
+    hostname: $HOSTNAME
+    ports:
+      - ${RABBIT_EXP_PORT:-9419}:9419
+    environment:
+      - RABBIT_URL=${RABBIT_URL}
+      - RABBIT_USER=${RABBIT_USER}
+      - RABBIT_PASSWORD=${RABBIT_PASSWORD}
+    restart: unless-stopped
+    labels:
+      app: "victoriametrics"
+      product_id: "vm-rabbitmqexporter"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "product_id"

@@ -1,0 +1,90 @@
+input {
+    pipeline {
+        address => elasticsearch_pipeline
+    }
+}
+
+filter {
+    mutate { remove_field => [
+                "[container][labels]",
+                "tags",
+                "stream",
+                "time"
+            ]
+    }
+
+    #Формируем суффикс      индекса для пайплайна
+
+    # ------------------------------------ СТАРЫЙ ВАРИАНТ -------------------------
+    if [attrs][product_id] {
+        mutate { update => { "[@metadata][index_suffix]" => "%{[attrs][product_id]}" } }
+    }
+    else if [docker][attrs][product_id] {
+        mutate { update => { "[@metadata][index_suffix]" => "%{[docker][attrs][product_id]}" } }
+    }
+    else if [kubernetes][labels][product_id] {
+        mutate { update => { "[@metadata][index_suffix]" => "%{[kubernetes][labels][product_id]}" } }
+    }
+    else if [fields][product_id] {
+        mutate { update => { "[@metadata][index_suffix]" => "%{[fields][product_id]}" } }
+    }
+    else if [extra][product_id] {
+        mutate { update => { "[@metadata][index_suffix]" => "%{[extra][product_id]}" } }
+    }
+    else if [product_id] {
+        mutate { update => { "[@metadata][index_suffix]" => "%{product_id}" } }
+    }
+    else {
+        #Для сообщений не попавших в специальные пайплайны есть отдельны индекс
+        mutate { update => { "[@metadata][index_suffix]" => "other" } }
+    }
+
+    # ------------------------------------ НОВЫЙ ВАРИАНТ -------------------------
+    if [attrs][es_index_name] {
+        mutate { update => { "[@metadata][index_suffix]" => "%{[attrs][es_index_name]}" } }
+    }
+    else if [docker][attrs][es_index_name] {
+        mutate { update => { "[@metadata][index_suffix]" => "%{[docker][attrs][es_index_name]}" } }
+    }
+    else if [kubernetes][labels][es_index_name] {
+        mutate { update => { "[@metadata][index_suffix]" => "%{[kubernetes][labels][es_index_name]}" } }
+    }
+    else if [fields][es_index_name] {
+        mutate { update => { "[@metadata][index_suffix]" => "%{[fields][es_index_name]}" } }
+    }
+    else if [extra][es_index_name] {
+        mutate { update => { "[@metadata][index_suffix]" => "%{[extra][es_index_name]}" } }
+    }
+    else if [es_index_name] {
+        mutate { update => { "[@metadata][index_suffix]" => "%{es_index_name}" } }
+    }
+    else if [@metadata][index_suffix] == "" {
+        #Для сообщений не попавших в специальные пайплайны есть отдельны индекс
+        mutate { update => { "[@metadata][index_suffix]" => "other" } }
+    }
+
+    if [@metadata][index_date_pattern] {
+        mutate { update  => { "[@metadata][index_suffix]" => "%{[@metadata][index_suffix]}-%{+YYYY.MM.dd}" } }
+    }
+    else {
+        mutate { update  => { "[@metadata][index_suffix]" => "%{[@metadata][index_suffix]}-%{+YYYY.MM}" } }
+    }
+}
+
+output {
+   opensearch {
+        # The list of Elasticsearch nodes to connect to. The events are distributed to these nodes in round robin order. If one node becomes unreachable, the event is automatically sent to another node.
+        hosts => [{% for host in groups['es_cluster'] %}"{{ hostvars[host]['ansible_host'] }}:{{ opensearch['port0'] | default('9200') }}"{% if not loop.last %},{% endif %}{% endfor %}]
+        #The index name to write events to when you’re using daily indices.
+        index => "%{[@metadata][index_suffix]}"
+        #The basic authentication username for connecting to Elasticsearch.
+        user => "${EUSER}"
+        #The basic authentication password for connecting to Elasticsearch.
+        password => "${EPASSWD}"
+        #Configuration options for SSL parameters like the certificate authority to use for HTTPS-based connections.
+        ssl => true
+        #cacert => "/full/path/to/root-ca.pem"
+        cacert => "/usr/share/logstash/config/ca-logstash.cer"
+        ssl_certificate_verification => false
+    }
+}

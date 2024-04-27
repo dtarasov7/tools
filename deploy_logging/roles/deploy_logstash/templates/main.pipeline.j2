@@ -1,0 +1,85 @@
+input {
+    beats {
+        id => "app"
+        port => {{ logstash['port0'] | default('7001') }}
+        client_inactivity_timeout => 60
+    }
+    tcp {
+        port => {{ logstash['port1'] | default('7002') }}
+    }
+}
+
+filter {
+    #Инициализация поля index_suffix используемого потом для формирования индекса
+    mutate { add_field => { "[@metadata][index_suffix]" => "" } }
+
+    #Инициализация поля index_date_pattern используемого потом для формирования индекса
+    mutate { add_field => { "[@metadata][index_date_pattern]" => "" } }
+
+    #Если событие в JSON - достаем его наверх
+    #Параметр fields_under_root в filebeat выключен, поэтому делаем это тут
+    if [message] =~ "\A\{.+\}\z" {
+        json {
+            skip_on_invalid_json => true
+            source => "message"
+        }
+        if "_jsonfailure" in [tag_on_failure] {
+            mutate { add_field => { "[message_parse_failure]" => "true" } }
+        }
+    }
+
+    if [attrs][es_index_period] == "day" {
+        # создавать индексы ежедневно
+        mutate { add_field => { "[@metadata][index_date_pattern]" => "day" } }
+    } else if [docker][attrs][es_index_period] == "day" {
+        # создавать индексы ежедневно
+        mutate { add_field => { "[@metadata][index_date_pattern]" => "day" } }
+    } else if [fields][es_index_period] == "day" {
+        # создавать индексы ежедневно
+        mutate { add_field => { "[@metadata][index_date_pattern]" => "day" } }
+    } else if [es_index_period] == "day" {
+        # создавать индексы ежедневно
+        mutate { add_field => { "[@metadata][index_date_pattern]" => "day" } }
+    } else if [kubernetes][labels][es_index_period] == "day" {
+        # создавать индексы ежедневно
+        mutate { add_field => { "[@metadata][index_date_pattern]" => "day" } }
+    }
+
+}
+
+#Разделяем потоки событий
+output {
+
+    if [nginx] {
+        # События от nginx
+        pipeline {
+            id => "sendToNginx"
+            send_to => nginx_pipeline
+        }
+    } else if [attrs][es_index_name] == "logstash" {
+        # События от logstash
+        pipeline {
+            id => "sendToLogstash"
+            send_to => logstash_pipeline
+        }
+    } else if [type] == "python-logstash" {
+        # События от python
+        pipeline {
+            id => "fromPythonToElastic"
+            send_to => elasticsearch_pipeline
+        }
+#    } else if [attrs][es_index_name] == "bash" {
+#        # События от rsyslog для bash history логов
+#        pipeline {
+#            id => "sendToBash"
+#            send_to => bash_pipeline
+#        }
+    } else {
+        # прочее
+        pipeline {
+            id => "sendToOther"
+            send_to => other_pipeline
+        }
+    }
+}
+

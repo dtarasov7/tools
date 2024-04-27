@@ -1,0 +1,9 @@
+---
+# переменные inventory group_vars/ выше чем inventory group_vars/all, но ниже чем inventory file
+################## basic vars
+#docker_path: /data
+filebeat_data_dir: /opt/ans_filebeat_deploy
+
+################## vars for filebeat.yml
+# If set to true and multiple Logstash hosts are configured, the output plugin load balances published events onto all Logstash hosts. If set to false, the output plugin sends all events to only one host (determined at random) and will switch to another host if the selected one becomes unresponsive. The default value is false.
+loadBalance: true

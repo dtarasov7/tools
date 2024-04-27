@@ -1,0 +1,16 @@
+http.host: 0.0.0.0
+dead_letter_queue.enable: true
+{% if dead_letter_queue_max_bytes is defined %}
+dead_letter_queue.max_bytes: {{ dead_letter_queue_max_bytes }}
+{% endif %}
+{% if dead_letter_queue_retain_age is defined %}
+dead_letter_queue.retain.age: {{ dead_letter_queue_retain_age }}
+{% endif %}
+path.dead_letter_queue: /var/lib/logstash/data/dead_letter_queue
+path.queue: /var/lib/logstash/data/queue
+queue.type: memory
+{% if pipeline_workers is defined and pipeline_workers|length %}
+pipeline.workers: {{ pipeline_workers }}
+{% else %}
+pipeline.workers: {{ ansible_processor_cores }}
+{% endif %}

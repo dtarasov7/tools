@@ -1,0 +1,69 @@
+input {
+    pipeline {
+        id => "readGentiscMesh"
+        address => genticsmesh_pipeline
+    }
+}
+
+filter {
+
+    if [log] =~ "\{.+\}" {
+        # у нас в JSON log лежит сообщение о событии - тащим его поля наверх
+        json {
+            source => "log"
+        }
+        # замечания по GROK
+        #       в grok желательно использовать минимум DATA и GREEDYDATA. Шаблоны должны быть максимально избирательными жесткими.
+        #       https://kesh.kz/blog/%D0%BE%D0%BF%D1%82%D0%B8%D0%BC%D0%B8%D0%B7%D0%B0%D1%86%D0%B8%D1%8F-grok-logstash/
+        #       патерны для GROK  https://github.com/hpcugent/logstash-patterns/blob/master/files/grok-patterns https://github.com/elastic/logstash/blob/v1.4.2/patterns/grok-patterns
+        #       онлайн дебагер http://grokdebug.herokuapp.com/
+        #вытащим кустарные поля
+        grok {
+            break_on_match => false
+            match => {
+                "message" => [
+                    #вытащим логин и JWT-токен
+                    "Login user:%{USERNAME:login}, token:%{GREEDYDATA:jwt_token}",
+                    #
+                    "%{IPV4:ip} - \"%{WORD:req_type} %{URIPATH:req_url'}\" %{POSINT:res_code} %{DATA:url} \"%{DATA:useragent}\" ",
+                    #вытащим поля REST запроса
+                    "%{IPV4:ip} - \"%{WORD:req_type} %{URIPATH:req_url'}\" %{POSINT:res_code} %{DATA:url} \"%{DATA:useragent}\" \"Bearer %{GREEDYDATA:jwt_token}\""
+                    ]
+                }
+                #при разборе могут не обнаружится поля - игнорим
+                tag_on_failure => []
+        }
+        mutate {
+            #маскировка пароля.
+            #когда нужно чтобы в подменной строке были двойные кавычки - всю строку нужно брать в одиночные кавычки и тогда внутри строки можно делать двойные (без экранирования)
+            gsub => [
+                "message", "\"password\":\"(.+)\"", '"password":"******"',
+                "message", "\"Bearer\s([a-zA-Z0-9-_=]+)\.([a-zA-Z0-9-_=]+)\.([a-zA-Z0-9-_=]+)\"", '"Bearer \1.******.***',
+                "jwt_token", "([a-zA-Z0-9-_=]+)\.(\s*\S{0,10})([a-zA-Z0-9-_=]+)\.([a-zA-Z0-9-_=]+)", "\2"
+            ]
+            remove_field => [
+                "log",
+                "[container][labels]",
+                "tags",
+                "stream",
+                "time"
+            ]
+            convert => {
+                "jwt_token" => "string"
+                "login" => "string"
+                "url" => "string"
+                "req_type" => "string"
+                "req_url" => "string"
+                "res_code" => "integer"
+                "useragent" => "string"
+            }
+        }
+    }
+}
+
+output {
+    pipeline {
+        id => "fromGenticsMeshToElastic"
+        send_to => elasticsearch_pipeline
+    }
+}

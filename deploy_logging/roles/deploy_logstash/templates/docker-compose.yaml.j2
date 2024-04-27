@@ -1,0 +1,37 @@
+version: '3'
+
+#networks:
+#  odfe-net:
+
+services:
+  logstash:
+    image: "{{ logstash['image'] }}:{{ logstash['version'] }}"
+    container_name: logstash
+    hostname: "{{ ansible_hostname }}"
+    restart: always
+    ports:
+      - "{{ logstash['port0'] | default('7001') }}:7001/tcp"
+      - "{{ logstash['port1'] | default('7002') }}:7002/tcp"
+      - "{{ logstash['port2'] | default('9600') }}:9600/tcp"
+    environment:
+      - "LS_JAVA_OPTS=-Xms{{ ls_java_opt['min'] }} -Xmx{{ ls_java_opt['max'] }}"
+      - EUSER={{ opensearch['admin_user'] | default('admin') }}
+      - EPASSWD={{ opensearch['admin_passwd'] | default('admin') }}
+    volumes:
+      - ./config/logstash.yml:/usr/share/logstash/config/logstash.yml
+      - ./config/pipelines.yml:/usr/share/logstash/config/pipelines.yml
+      - ./config/opensearch_ca_{{ ansible_hostname }}_logstash.cer:/usr/share/logstash/config/ca-logstash.cer
+      - ./pipeline:/usr/share/logstash/pipeline
+      - ./data:/var/lib/logstash/data
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "app,es_index_name,es_index_period,pipeline"
+    labels:
+      app: "logstash"
+      es_index_name: "{{ product_environment }}-logstash"
+      filebeat.enable: "true"
+#      pipeline: "logstash"
+#      es_index_period: "day"
