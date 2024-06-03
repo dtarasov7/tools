@@ -1,0 +1,133 @@
+{% if 'cadvisor' in groups and 'cadvisor' in group_names %}
+{ "id": "cadvisor-{{ ansible_hostname }}-{{ docker['cadvisor_port'] }}", "name": "cadvisor", "port": {{ docker['cadvisor_port'] }}, "tags": ["cadvisor", "prometheus", "docker"], "checks": [{ "name": "Check TCP port {{ docker['cadvisor_port'] }}", "tcp": "{{ ansible_host }}:{{ docker['cadvisor_port'] }}", "interval": "{{ checks['interval'] }}", "timeout": "{{ checks['timeout'] }}", "deregister_critical_service_after": "{{ checks['deregisterAfter'] }}" }] }
+{% endif -%}
+{% if 'elasticsearch_exporter' in groups and 'elasticsearch_exporter' in group_names %}
+{ "id": "elasticsearch-{{ ansible_hostname }}-{{ docker['elexp_port'] }}", "name": "elasticsearch", "port": {{ docker['elexp_port'] }}, "tags": ["elasticsearch", "prometheus", "elk"], "checks": [{ "name": "Check TCP port {{ docker['elexp_port'] }}", "tcp": "{{ ansible_host }}:{{ docker['elexp_port'] }}", "interval": "{{ checks['interval'] }}", "timeout": "{{ checks['timeout'] }}", "deregister_critical_service_after": "{{ checks['deregisterAfter'] }}" }] }
+{% endif -%}
+{% if 'nginxlog' in groups and 'nginxlog' in group_names %}
+{ "id": "nginxlog-{{ ansible_hostname }}-{{ docker['nginxlog_port'] }}", "name": "nginxlog", "port": {{ docker['nginxlog_port'] }}, "tags": ["nginxlog", "prometheus", "nginxlog-exporter"], "checks": [{ "name": "Check TCP port {{ docker['nginxlog_port'] }}", "tcp": "{{ ansible_host }}:{{ docker['nginxlog_port'] }}", "interval": "{{ checks['interval'] }}", "timeout": "{{ checks['timeout'] }}", "deregister_critical_service_after": "{{ checks['deregisterAfter'] }}" }] }
+{% endif -%}
+{% if 'kafka_exporter' in groups and 'kafka_exporter' in group_names %}
+{ "id": "kafka-exporter-{{ ansible_hostname }}-{{ docker['kafkaexp_port'] }}", "name": "kafka-exporter", "port": {{ docker['kafkaexp_port'] }}, "tags": ["kafka", "prometheus", "kafka-exporter"], "checks": [{ "name": "Check TCP port {{ docker['kafkaexp_port'] }}", "tcp": "{{ ansible_host }}:{{ docker['kafkaexp_port'] }}", "interval": "{{ checks['interval'] }}", "timeout": "{{ checks['timeout'] }}", "deregister_critical_service_after": "{{ checks['deregisterAfter'] }}" }] }
+{% endif -%}
+{% if 'redis_exporter' in groups and 'redis_exporter' in group_names %}
+{ "id": "redis-exporter-{{ ansible_hostname }}-{{ docker['redisexp_port'] }}", "name": "redis-exporter", "port": {{ docker['redisexp_port'] }}, "tags": ["redis", "prometheus", "redis-exporter"], "checks": [{ "name": "Check TCP port {{ docker['redisexp_port'] }}", "tcp": "{{ ansible_host }}:{{ docker['redisexp_port'] }}", "interval": "{{ checks['interval'] }}", "timeout": "{{ checks['timeout'] }}", "deregister_critical_service_after": "{{ checks['deregisterAfter'] }}" }] }
+{% endif -%}
+{% if 'postgres_exporter' in groups and 'postgres_exporter' in group_names %}
+{ "id": "postgres-exporter-{{ ansible_hostname }}-{{ docker['postgresexp_port'] }}", "name": "postgres-exporter", "port": {{ docker['postgresexp_port'] }}, "tags": ["postgres", "prometheus", "postgres-exporter"], "checks": [{ "name": "Check TCP port {{ docker['postgresexp_port'] }}", "tcp": "{{ ansible_host }}:{{ docker['postgresexp_port'] }}", "interval": "{{ checks['interval'] }}", "timeout": "{{ checks['timeout'] }}", "deregister_critical_service_after": "{{ checks['deregisterAfter'] }}" }] }
+{% endif -%}
+{% if 'logstash_exporter' in groups and 'logstash_exporter' in group_names %}
+{ "id": "logstash-exporter-{{ ansible_hostname }}-{{ docker['logstashexp_port'] }}", "name": "logstash-exporter", "port": {{ docker['logstashexp_port'] }}, "tags": ["logstash", "prometheus", "logstash-exporter"], "checks": [{ "name": "Check TCP port {{ docker['logstashexp_port'] }}", "tcp": "{{ ansible_host }}:{{ docker['logstashexp_port'] }}", "interval": "{{ checks['interval'] }}", "timeout": "{{ checks['timeout'] }}", "deregister_critical_service_after": "{{ checks['deregisterAfter'] }}" }] }
+{% endif -%}
+{% if 'beat_exporter' in groups and 'beat_exporter' in group_names %}
+{ "id": "beat-exporter-{{ ansible_hostname }}-{{ docker['beatexporter_port'] }}", "name": "beat-exporter", "port": {{ docker['beatexporter_port'] }}, "tags": ["filebeat", "prometheus", "beat-exporter"], "checks": [{ "name": "Check TCP port {{ docker['beatexporter_port'] }}", "tcp": "{{ ansible_host }}:{{ docker['beatexporter_port'] }}", "interval": "{{ checks['interval'] }}", "timeout": "{{ checks['timeout'] }}", "deregister_critical_service_after": "{{ checks['deregisterAfter'] }}" }] }
+{% endif -%}
+{% if 'keycloak' in groups and 'keycloak' in group_names %}
+{ "id": "keycloak-{{ ansible_hostname }}-{{ docker['keycloak_port'] }}", "name": "keycloak", "port": {{ docker['keycloak_port'] }}, "tags":  ["keycloak", "prometheus"], "checks": [{ "name": "Check TCP port {{ docker['keycloak_port'] }}", "tcp": "{{ ansible_host }}:{{ docker['keycloak_port'] }}", "interval": "{{ checks['interval'] }}", "timeout": "{{ checks['timeout'] }}", "deregister_critical_service_after": "{{ checks['deregisterAfter'] }}" }] }
+{% endif -%}
+{% if 'mesh_single' in groups and 'mesh_single' in group_names %}
+{% for port in mesh_port %}
+{ "id": "mesh-{{ ansible_hostname }}-{{ port }}", "name": "mesh", "port": {{ port }}, "tags":  ["mesh", "prometheus"], "checks": [{ "name": "Check TCP port {{ port }}", "tcp": "{{ ansible_host }}:{{ port }}", "interval": "{{ checks['interval'] }}", "timeout": "{{ checks['timeout'] }}", "deregister_critical_service_after": "{{ checks['deregisterAfter'] }}" }] }
+{% endfor %}
+{% endif -%}
+{% if 'mesh_cluster' in groups and 'mesh_cluster' in group_names %}
+{ "id": "mesh-cluster-{{ ansible_hostname }}-{{ mesh_port }}", "name": "mesh", "port": {{ mesh_port }}, "tags":  ["mesh", "prometheus"], "checks": [{ "name": "Check TCP port {{ mesh_port }}", "tcp": "{{ ansible_host }}:{{ mesh_port }}", "interval": "{{ checks['interval'] }}", "timeout": "{{ checks['timeout'] }}", "deregister_critical_service_after": "{{ checks['deregisterAfter'] }}" }] }
+{% endif -%}
+{% if 'node_exporter' in groups and 'node_exporter' in group_names %}
+{ "id": "node-exporter-{{ ansible_hostname }}-{{ docker['nodeexp_port'] }}", "name": "nodeexporter", "port": {{ docker['nodeexp_port'] }}, "tags":  ["node-exporter", "prometheus", "os"], "checks": [{ "name": "Check TCP port {{ docker['nodeexp_port'] }}", "tcp": "{{ ansible_host }}:{{ docker['nodeexp_port'] }}", "interval": "{{ checks['interval'] }}", "timeout": "{{ checks['timeout'] }}", "deregister_critical_service_after": "{{ checks['deregisterAfter'] }}" }] }
+{ "id": "process_exporter-{{ ansible_hostname }}-{{ docker['procexp_port'] }}", "name": "process_exporter", "port": {{ docker['procexp_port'] }}, "tags":  ["process-exporter", "prometheus", "os"], "checks": [{ "name": "Check TCP port {{ docker['procexp_port'] }}", "tcp": "{{ ansible_host }}:{{ docker['procexp_port'] }}", "interval": "{{ checks['interval'] }}", "timeout": "{{ checks['timeout'] }}", "deregister_critical_service_after": "{{ checks['deregisterAfter'] }}" }] }
+{% endif -%}
+{% if 'bb' in groups and 'bb' in group_names %}
+{% if http2xx_module|bool %}
+{%- if getmesh_target|bool %}
+{ "id": "blackbox-http-2xx-{{ ansible_hostname }}-{{ targets['getmash_port'] }}", "name": "blackbox-http-2xx", "port": {{ targets['getmash_port'] }}, "tags":  ["http://{{ ansible_host }}:{{ targets['getmash_port'] }}{{ targets['getmesh_path'] }}", "getmesh"], "checks": [{ "name": "Check TCP port {{ targets['getmash_port'] }}", "tcp": "{{ ansible_host }}:{{ targets['getmash_port'] }}", "interval": "{{ checks['interval'] }}", "timeout": "{{ checks['timeout'] }}", "deregister_critical_service_after": "{{ checks['deregisterAfter'] }}" }] }
+{% endif -%}
+{%- if fullback_target|bool %}
+{ "id": "blackbox-http-2xx-{{ ansible_hostname }}-{{ targets['fullback_port'] }}", "name": "blackbox-http-2xx", "port": {{ targets['fullback_port'] }}, "tags":  ["http://{{ ansible_host }}:{{ targets['fullback_port'] }}{{ targets['fullback_path'] | default() }}", "fullback"], "checks": [{ "name": "Check TCP port {{ targets['fullback_port'] }}", "tcp": "{{ ansible_host }}:{{ targets['fullback_port'] }}", "interval": "{{ checks['interval'] }}", "timeout": "{{ checks['timeout'] }}", "deregister_critical_service_after": "{{ checks['deregisterAfter'] }}" }] }
+{% endif -%}
+{%- if cash_target|bool %}
+{ "id": "blackbox-http-2xx-{{ ansible_hostname }}-{{ targets['cash_port'] }}", "name": "blackbox-http-2xx", "port": {{ targets['cash_port'] }}, "tags":  ["http://{{ ansible_host }}:{{ targets['cash_port'] }}{{ targets['cash_path'] | default() }}", "cash"], "checks": [{ "name": "Check TCP port {{ targets['cash_port'] }}", "tcp": "{{ ansible_host }}:{{ targets['cash_port'] }}", "interval": "{{ checks['interval'] }}", "timeout": "{{ checks['timeout'] }}", "deregister_critical_service_after": "{{ checks['deregisterAfter'] }}" }] }
+{% endif -%}
+{%- if mortgage_target|bool %}
+{ "id": "blackbox-http-2xx-{{ ansible_hostname }}-{{ targets['mortgage_port'] }}", "name": "blackbox-http-2xx", "port": {{ targets['mortgage_port'] }}, "tags":  ["http://{{ ansible_host }}:{{ targets['mortgage_port'] }}{{ targets['mortgage_path'] | default() }}", "mortgage"], "checks": [{ "name": "Check TCP port {{ targets['mortgage_port'] }}", "tcp": "{{ ansible_host }}:{{ targets['mortgage_port'] }}", "interval": "{{ checks['interval'] }}", "timeout": "{{ checks['timeout'] }}", "deregister_critical_service_after": "{{ checks['deregisterAfter'] }}" }] }
+{% endif -%}
+{%- if integration_target|bool %}
+{ "id": "blackbox-http-2xx-{{ ansible_hostname }}-{{ targets['integration_port'] }}", "name": "blackbox-http-2xx", "port": {{ targets['integration_port'] }}, "tags":  ["http://{{ ansible_host }}:{{ targets['integration_port'] }}{{ targets['integration_path'] | default() }}", "integration"], "checks": [{ "name": "Check TCP port {{ targets['integration_port'] }}", "tcp": "{{ ansible_host }}:{{ targets['integration_port'] }}", "interval": "{{ checks['interval'] }}", "timeout": "{{ checks['timeout'] }}", "deregister_critical_service_after": "{{ checks['deregisterAfter'] }}" }] }
+{% endif -%}
+{%- if elasticsearch_target|bool %}
+{ "id": "blackbox-http-2xx-{{ ansible_hostname }}-{{ targets['elasticsearch_port'] }}", "name": "blackbox-http-2xx", "port": {{ targets['elasticsearch_port'] }}, "tags":  ["http://{{ ansible_host }}:{{ targets['elasticsearch_port'] }}{{ targets['elasticsearch_path'] | default() }}", "elasticsearch"], "checks": [{ "name": "Check TCP port {{ targets['elasticsearch_port'] }}", "tcp": "{{ ansible_host }}:{{ targets['elasticsearch_port'] }}", "interval": "{{ checks['interval'] }}", "timeout": "{{ checks['timeout'] }}", "deregister_critical_service_after": "{{ checks['deregisterAfter'] }}" }] }
+{% endif -%}
+{%- if kibana_target|bool %}
+{ "id": "blackbox-http-2xx-{{ ansible_hostname }}-{{ targets['kibana_port'] }}", "name": "blackbox-http-2xx", "port": {{ targets['kibana_port'] }}, "tags":  ["http://{{ ansible_host }}:{{ targets['kibana_port'] }}{{ targets['kibana_path'] | default() }}", "kibana"], "checks": [{ "name": "Check TCP port {{ targets['kibana_port'] }}", "tcp": "{{ ansible_host }}:{{ targets['kibana_port'] }}", "interval": "{{ checks['interval'] }}", "timeout": "{{ checks['timeout'] }}", "deregister_critical_service_after": "{{ checks['deregisterAfter'] }}" }] }
+{% endif -%}
+{% endif %}
+{% if https2xx_module|bool %}
+{%- if getmesh_target|bool %}
+{ "id": "blackbox-https-2xx-{{ ansible_hostname }}-{{ targets['getmash_port'] }}", "name": "blackbox-https-2xx", "port": {{ targets['getmash_port'] }}, "tags":  ["https://{{ ansible_host }}:{{ targets['getmash_port'] }}{{ targets['getmesh_path'] }}", "getmesh"], "checks": [{ "name": "Check TCP port {{ targets['getmash_port'] }}", "tcp": "{{ ansible_host }}:{{ targets['getmash_port'] }}", "interval": "{{ checks['interval'] }}", "timeout": "{{ checks['timeout'] }}", "deregister_critical_service_after": "{{ checks['deregisterAfter'] }}" }] } }
+{% endif -%}
+{%- if fullback_target|bool %}
+{ "id": "blackbox-https-2xx-{{ ansible_hostname }}-{{ targets['fullback_port'] }}", "name": "blackbox-https-2xx", "port": {{ targets['fullback_port'] }}, "tags":  ["https://{{ ansible_host }}:{{ targets['fullback_port'] }}{{ targets['fullback_path'] | default() }}", "fullback"], "checks": [{ "name": "Check TCP port {{ targets['fullback_port'] }}", "tcp": "{{ ansible_host }}:{{ targets['fullback_port'] }}", "interval": "{{ checks['interval'] }}", "timeout": "{{ checks['timeout'] }}", "deregister_critical_service_after": "{{ checks['deregisterAfter'] }}" }] }
+{% endif -%}
+{%- if cash_target|bool %}
+{ "id": "blackbox-https-2xx-{{ ansible_hostname }}-{{ targets['cash_port'] }}", "name": "blackbox-https-2xx", "port": {{ targets['cash_port'] }}, "tags":  ["https://{{ ansible_host }}:{{ targets['cash_port'] }}{{ targets['cash_path'] | default() }}", "cash"], "checks": [{ "name": "Check TCP port {{ targets['cash_port'] }}", "tcp": "{{ ansible_host }}:{{ targets['cash_port'] }}", "interval": "{{ checks['interval'] }}", "timeout": "{{ checks['timeout'] }}", "deregister_critical_service_after": "{{ checks['deregisterAfter'] }}" }] }
+{% endif -%}
+{%- if mortgage_target|bool %}
+{ "id": "blackbox-https-2xx-{{ ansible_hostname }}-{{ targets['mortgage_port'] }}", "name": "blackbox-https-2xx", "port": {{ targets['mortgage_port'] }}, "tags":  ["https://{{ ansible_host }}:{{ targets['mortgage_port'] }}{{ targets['mortgage_path'] | default() }}", "mortgage"], "checks": [{ "name": "Check TCP port {{ targets['mortgage_port'] }}", "tcp": "{{ ansible_host }}:{{ targets['mortgage_port'] }}", "interval": "{{ checks['interval'] }}", "timeout": "{{ checks['timeout'] }}", "deregister_critical_service_after": "{{ checks['deregisterAfter'] }}" }] }
+{% endif -%}
+{%- if integration_target|bool %}
+{ "id": "blackbox-https-2xx-{{ ansible_hostname }}-{{ targets['integration_port'] }}", "name": "blackbox-https-2xx", "port": {{ targets['integration_port'] }}, "tags":  ["https://{{ ansible_host }}:{{ targets['integration_port'] }}{{ targets['integration_path'] | default() }}", "integration"], "checks": [{ "name": "Check TCP port {{ targets['integration_port'] }}", "tcp": "{{ ansible_host }}:{{ targets['integration_port'] }}", "interval": "{{ checks['interval'] }}", "timeout": "{{ checks['timeout'] }}", "deregister_critical_service_after": "{{ checks['deregisterAfter'] }}" }] }
+{% endif -%}
+{%- if elasticsearch_target|bool %}
+{ "id": "blackbox-https-2xx-{{ ansible_hostname }}-{{ targets['elasticsearch_port'] }}", "name": "blackbox-https-2xx", "port": {{ targets['elasticsearch_port'] }}, "tags":  ["https://{{ ansible_host }}:{{ targets['elasticsearch_port'] }}{{ targets['elasticsearch_path'] | default() }}", "elasticsearch"], "checks": [{ "name": "Check TCP port {{ targets['elasticsearch_port'] }}", "tcp": "{{ ansible_host }}:{{ targets['elasticsearch_port'] }}", "interval": "{{ checks['interval'] }}", "timeout": "{{ checks['timeout'] }}", "deregister_critical_service_after": "{{ checks['deregisterAfter'] }}" }] }
+{% endif -%}
+{%- if kibana_target|bool %}
+{ "id": "blackbox-https-2xx-{{ ansible_hostname }}-{{ targets['kibana_port'] }}", "name": "blackbox-https-2xx", "port": {{ targets['kibana_port'] }}, "tags":  ["https://{{ ansible_host }}:{{ targets['kibana_port'] }}{{ targets['kibana_path'] | default() }}", "kibana"], "checks": [{ "name": "Check TCP port {{ targets['kibana_port'] }}", "tcp": "{{ ansible_host }}:{{ targets['kibana_port'] }}", "interval": "{{ checks['interval'] }}", "timeout": "{{ checks['timeout'] }}", "deregister_critical_service_after": "{{ checks['deregisterAfter'] }}" }] }
+{% endif -%}
+{% endif %}
+{% if http401_module|bool %}
+{%- if getmesh_target|bool %}
+{ "id": "blackbox-http-401-{{ ansible_hostname }}-{{ targets['getmash_port'] }}", "name": "blackbox-http-401", "port": {{ targets['getmash_port'] }}, "tags":  ["http://{{ ansible_host }}:{{ targets['getmash_port'] }}{{ targets['getmesh_path'] }}", "getmesh"], "checks": [{ "name": "Check TCP port {{ targets['getmash_port'] }}", "tcp": "{{ ansible_host }}:{{ targets['getmash_port'] }}", "interval": "{{ checks['interval'] }}", "timeout": "{{ checks['timeout'] }}", "deregister_critical_service_after": "{{ checks['deregisterAfter'] }}" }] }
+{% endif -%}
+{%- if fullback_target|bool %}
+{ "id": "blackbox-http-401-{{ ansible_hostname }}-{{ targets['fullback_port'] }}", "name": "blackbox-http-401", "port": {{ targets['fullback_port'] }}, "tags":  ["http://{{ ansible_host }}:{{ targets['fullback_port'] }}{{ targets['fullback_path'] | default() }}", "fullback"], "checks": [{ "name": "Check TCP port {{ targets['fullback_port'] }}", "tcp": "{{ ansible_host }}:{{ targets['fullback_port'] }}", "interval": "{{ checks['interval'] }}", "timeout": "{{ checks['timeout'] }}", "deregister_critical_service_after": "{{ checks['deregisterAfter'] }}" }] }
+{% endif -%}
+{%- if cash_target|bool %}
+{ "id": "blackbox-http-401-{{ ansible_hostname }}-{{ targets['cash_port'] }}", "name": "blackbox-http-401", "port": {{ targets['cash_port'] }}, "tags":  ["http://{{ ansible_host }}:{{ targets['cash_port'] }}{{ targets['cash_path'] | default() }}", "cash"], "checks": [{ "name": "Check TCP port {{ targets['cash_port'] }}", "tcp": "{{ ansible_host }}:{{ targets['cash_port'] }}", "interval": "{{ checks['interval'] }}", "timeout": "{{ checks['timeout'] }}", "deregister_critical_service_after": "{{ checks['deregisterAfter'] }}" }] }
+{% endif -%}
+{%- if mortgage_target|bool %}
+{ "id": "blackbox-http-401-{{ ansible_hostname }}-{{ targets['mortgage_port'] }}", "name": "blackbox-http-401", "port": {{ targets['mortgage_port'] }}, "tags":  ["http://{{ ansible_host }}:{{ targets['mortgage_port'] }}{{ targets['mortgage_path'] | default() }}", "mortgage"], "checks": [{ "name": "Check TCP port {{ targets['mortgage_port'] }}", "tcp": "{{ ansible_host }}:{{ targets['mortgage_port'] }}", "interval": "{{ checks['interval'] }}", "timeout": "{{ checks['timeout'] }}", "deregister_critical_service_after": "{{ checks['deregisterAfter'] }}" }] }
+{% endif -%}
+{%- if integration_target|bool %}
+{ "id": "blackbox-http-401-{{ ansible_hostname }}-{{ targets['integration_port'] }}", "name": "blackbox-http-401", "port": {{ targets['integration_port'] }}, "tags":  ["http://{{ ansible_host }}:{{ targets['integration_port'] }}{{ targets['integration_path'] | default() }}", "integration"], "checks": [{ "name": "Check TCP port {{ targets['integration_port'] }}", "tcp": "{{ ansible_host }}:{{ targets['integration_port'] }}", "interval": "{{ checks['interval'] }}", "timeout": "{{ checks['timeout'] }}", "deregister_critical_service_after": "{{ checks['deregisterAfter'] }}" }] }
+{% endif -%}
+{%- if elasticsearch_target|bool %}
+{ "id": "blackbox-http-401-{{ ansible_hostname }}-{{ targets['elasticsearch_port'] }}", "name": "blackbox-http-401", "port": {{ targets['elasticsearch_port'] }}, "tags":  ["http://{{ ansible_host }}:{{ targets['elasticsearch_port'] }}{{ targets['elasticsearch_path'] | default() }}", "elasticsearch"], "checks": [{ "name": "Check TCP port {{ targets['elasticsearch_port'] }}", "tcp": "{{ ansible_host }}:{{ targets['elasticsearch_port'] }}", "interval": "{{ checks['interval'] }}", "timeout": "{{ checks['timeout'] }}", "deregister_critical_service_after": "{{ checks['deregisterAfter'] }}" }] }
+{% endif -%}
+{%- if kibana_target|bool %}
+{ "id": "blackbox-http-401-{{ ansible_hostname }}-{{ targets['kibana_port'] }}", "name": "blackbox-http-401", "port": {{ targets['kibana_port'] }}, "tags":  ["http://{{ ansible_host }}:{{ targets['kibana_port'] }}{{ targets['kibana_path'] | default() }}", "kibana"], "checks": [{ "name": "Check TCP port {{ targets['kibana_port'] }}", "tcp": "{{ ansible_host }}:{{ targets['kibana_port'] }}", "interval": "{{ checks['interval'] }}", "timeout": "{{ checks['timeout'] }}", "deregister_critical_service_after": "{{ checks['deregisterAfter'] }}" }] }
+{% endif -%}
+{% endif %}
+{% if http302_module|bool %}
+{%- if getmesh_target|bool %}
+{ "id": "blackbox-http-302-{{ ansible_hostname }}-{{ targets['getmash_port'] }}", "name": "blackbox-http-302", "port": {{ targets['getmash_port'] }}, "tags":  ["http://{{ ansible_host }}:{{ targets['getmash_port'] }}{{ targets['getmesh_path'] }}", "getmesh"], "checks": [{ "name": "Check TCP port {{ targets['getmash_port'] }}", "tcp": "{{ ansible_host }}:{{ targets['getmash_port'] }}", "interval": "{{ checks['interval'] }}", "timeout": "{{ checks['timeout'] }}", "deregister_critical_service_after": "{{ checks['deregisterAfter'] }}" }] }
+{% endif -%}
+{%- if fullback_target|bool %}
+{ "id": "blackbox-http-302-{{ ansible_hostname }}-{{ targets['fullback_port'] }}", "name": "blackbox-http-302", "port": {{ targets['fullback_port'] }}, "tags":  ["http://{{ ansible_host }}:{{ targets['fullback_port'] }}{{ targets['fullback_path'] | default() }}", "fullback"], "checks": [{ "name": "Check TCP port {{ targets['fullback_port'] }}", "tcp": "{{ ansible_host }}:{{ targets['fullback_port'] }}", "interval": "{{ checks['interval'] }}", "timeout": "{{ checks['timeout'] }}", "deregister_critical_service_after": "{{ checks['deregisterAfter'] }}" }] }
+{% endif -%}
+{%- if cash_target|bool %}
+{ "id": "blackbox-http-302-{{ ansible_hostname }}-{{ targets['cash_port'] }}", "name": "blackbox-http-302", "port": {{ targets['cash_port'] }}, "tags":  ["http://{{ ansible_host }}:{{ targets['cash_port'] }}{{ targets['cash_path'] | default() }}", "cash"], "checks": [{ "name": "Check TCP port {{ targets['cash_port'] }}", "tcp": "{{ ansible_host }}:{{ targets['cash_port'] }}", "interval": "{{ checks['interval'] }}", "timeout": "{{ checks['timeout'] }}", "deregister_critical_service_after": "{{ checks['deregisterAfter'] }}" }] }
+{% endif -%}
+{%- if mortgage_target|bool %}
+{ "id": "blackbox-http-302-{{ ansible_hostname }}-{{ targets['mortgage_port'] }}", "name": "blackbox-http-302", "port": {{ targets['mortgage_port'] }}, "tags":  ["http://{{ ansible_host }}:{{ targets['mortgage_port'] }}{{ targets['mortgage_path'] | default() }}", "mortgage"], "checks": [{ "name": "Check TCP port {{ targets['mortgage_port'] }}", "tcp": "{{ ansible_host }}:{{ targets['mortgage_port'] }}", "interval": "{{ checks['interval'] }}", "timeout": "{{ checks['timeout'] }}", "deregister_critical_service_after": "{{ checks['deregisterAfter'] }}" }] }
+{% endif -%}
+{%- if integration_target|bool %}
+{ "id": "blackbox-http-302-{{ ansible_hostname }}-{{ targets['integration_port'] }}", "name": "blackbox-http-302", "port": {{ targets['integration_port'] }}, "tags":  ["http://{{ ansible_host }}:{{ targets['integration_port'] }}{{ targets['integration_path'] | default() }}", "integration"], "checks": [{ "name": "Check TCP port {{ targets['integration_port'] }}", "tcp": "{{ ansible_host }}:{{ targets['integration_port'] }}", "interval": "{{ checks['interval'] }}", "timeout": "{{ checks['timeout'] }}", "deregister_critical_service_after": "{{ checks['deregisterAfter'] }}" }] }
+{% endif -%}
+{%- if elasticsearch_target|bool %}
+{ "id": "blackbox-http-302-{{ ansible_hostname }}-{{ targets['elasticsearch_port'] }}", "name": "blackbox-http-302", "port": {{ targets['elasticsearch_port'] }}, "tags":  ["http://{{ ansible_host }}:{{ targets['elasticsearch_port'] }}{{ targets['elasticsearch_path'] | default() }}", "elasticsearch"], "checks": [{ "name": "Check TCP port {{ targets['elasticsearch_port'] }}", "tcp": "{{ ansible_host }}:{{ targets['elasticsearch_port'] }}", "interval": "{{ checks['interval'] }}", "timeout": "{{ checks['timeout'] }}", "deregister_critical_service_after": "{{ checks['deregisterAfter'] }}" }] }
+{% endif -%}
+{%- if kibana_target|bool %}
+{ "id": "blackbox-http-302-{{ ansible_hostname }}-{{ targets['kibana_port'] }}", "name": "blackbox-http-302", "port": {{ targets['kibana_port'] }}, "tags":  ["http://{{ ansible_host }}:{{ targets['kibana_port'] }}{{ targets['kibana_path'] | default() }}", "kibana"], "checks": [{ "name": "Check TCP port {{ targets['kibana_port'] }}", "tcp": "{{ ansible_host }}:{{ targets['kibana_port'] }}", "interval": "{{ checks['interval'] }}", "timeout": "{{ checks['timeout'] }}", "deregister_critical_service_after": "{{ checks['deregisterAfter'] }}" }] }
+{% endif -%}
+{% endif %}
+{% endif -%}

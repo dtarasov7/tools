@@ -1,0 +1,213 @@
+---
+- name: Generate new certificates (root, admin, ES-nodes and Opensearch-dashboards)
+  import_tasks: get_certs.yml
+  when: certificates == 'new'
+  tags: deploy_certs
+
+- name: Get already generated certificates
+  import_tasks: copy_certs.yml
+  when: certificates == 'copy'
+  tags: copy_certs
+
+- name: Deploy ES templates
+  template:
+    src: "{{ item.src }}"
+    dest: "{{ opensearch_data_dir }}/{{ item.dest }}"
+    mode: "{{ item.mode }}"
+    owner: "{{ item.user }}"
+  with_items:
+    - { src: 'internal_users.yml.j2', dest: 'opensearch-security/internal_users.yml', group: 'docker', user: '{{ svc_user }}', mode: '0600' }
+    - { src: 'opensearch.yml.j2', dest: 'opensearch.yml', group: 'docker', user: '{{ svc_user }}', mode: '0600' }
+#  when: "'es_cluster' in group_names"
+  tags: deploy_es_configs
+
+- name: Deploy Opensearch-dashboards templates
+  template:
+    src: "{{ item.src }}"
+    dest: "{{ opensearch_data_dir }}/{{ item.dest }}"
+    mode: "{{ item.mode }}"
+    owner: "{{ item.user }}"
+  with_items:
+    - { src: 'opensearch_dashboards.yml.j2', dest: 'opensearch_dashboards.yml', group: 'docker', user: '{{ svc_user }}', mode: '0600' }
+#  when: "'kibana' in group_names"
+  tags: deploy_kibana_configs
+
+- name: Make special docker volumes for cluster data and add permissions
+  file:
+    path: "{{ item.path }}"
+    state: directory
+    mode: "{{ item.mode }}"
+    owner: "{{ item.user }}"
+    recurse: "{{ item.recurse }}"
+  with_items:
+    - { path: '{{ docker_path_data }}', group: 'root', user: '1000', mode: '0755', recurse: 'yes' }
+  when: docker_path_data is defined
+  tags: docker_volume_opensearch
+
+- name: "Make default docker volumes and add permissions to /var/lib/docker/volumes/{{ project_name }}_opensearch-cluster-data"
+  file:
+    path: "{{ item.path }}"
+    state: directory
+    mode: "{{ item.mode }}"
+    owner: "{{ item.user }}"
+    recurse: "{{ item.recurse }}"
+  with_items:
+    - { path: '/var/lib/docker/volumes/{{ project_name }}_opensearch-cluster-data', group: 'root', user: '1000', mode: '0755', recurse: 'no' }
+  when: docker_path_data is not defined
+  tags: docker_volume_opensearch
+
+- name: Snapshot repository - Make folders for snapshots
+  file:
+    path: "{{ item.path }}"
+    state: directory
+    mode: "{{ item.mode }}"
+    owner: "{{ item.user }}"
+    recurse: "{{ item.recurse }}"
+  with_items:
+    - { path: '{{ opensearch_snapshot_path }}', group: 'root', user: '1000', mode: '0755', recurse: 'no' }
+  when: opensearch_snapshot|bool
+  tags:
+    - snapshot_repository_path
+    - snapshot_repository
+
+- name: Deploy docker_compose.yml
+  template:
+    src:  docker-compose.yaml.j2
+    dest: "{{ opensearch_data_dir }}/docker-compose.yaml"
+    owner: "{{ svc_user }}"
+    group: docker
+    mode: '0664'
+    backup: yes
+  tags: deploy_dc_template
+
+- name: sysctl tuning
+  sysctl:
+    name: vm.max_map_count
+    value: '262144'
+    state: present
+  tags: sysctl  
+
+- name: Docker-compose pull
+  shell: docker-compose pull
+  args:
+    chdir: '{{ opensearch_data_dir }}'
+  when: dc == 'up'
+  tags: dc_up
+
+- name: Docker-compose up
+  shell: docker-compose up -d && /usr/bin/sleep 5
+  args:
+    chdir: '{{ opensearch_data_dir }}'
+  throttle: 1
+  when: dc == 'up'
+  tags: dc_up
+
+- name: Docker-compose down
+  shell: docker-compose down
+  args:
+    chdir: '{{ opensearch_data_dir }}'
+  when: dc == 'down'
+  tags: dc_down
+
+- name: Check if container 'opensearch-node' is already running
+  shell: "docker ps -a --no-trunc --format '{% raw %}{{.State}}{% endraw %}' --filter 'name=opensearch-node'"
+  register: opensearch_exist
+  ignore_errors: yes
+  when: run_securityadmin|bool
+  tags:
+    - run_securityadmin
+    - check_status
+
+- name: Wait cluster status_code = 200, status GREEN and number_of_nodes > 1
+  uri:
+    url: "https://{{ ansible_host }}:{{ opensearch['port0'] | default('9200') }}/_cluster/health"
+    method: GET
+    return_content: yes
+    follow_redirects: none
+    user: "{{ opensearch['admin_user'] | default('admin') }}"
+    password: "{{ opensearch['admin_passwd'] | default('admin') }}"
+    validate_certs: no
+    status_code: 200
+    body_format: json
+  run_once: true
+  register: cluster_status
+  until:
+    - cluster_status.status == 200
+    - cluster_status.json.status == "green"
+    - cluster_status.json.number_of_nodes > 1
+  retries: 10
+  delay: 30
+  when: run_securityadmin|bool and opensearch_exist.stdout == 'running'
+  tags:
+    - run_securityadmin
+    - check_status
+
+#- debug:
+#    msg: "{{ cluster_status_code.json | json_query('status') }}"
+#  tags: check_status
+
+- name: Run securityadmin.sh to apply new configurations
+  command: docker exec opensearch-node /bin/sh /usr/share/opensearch/plugins/opensearch-security/tools/securityadmin.sh -cd /usr/share/opensearch/config/opensearch-security/ -icl -nhnv -cacert /usr/share/opensearch/config/root-ca.pem -cert /usr/share/opensearch/config/admin.pem -key /usr/share/opensearch/config/admin.key
+  #no_log: true
+  run_once: true
+  register: exec_result
+  when: "run_securityadmin|bool and cluster_status.status == 200 and cluster_status.json.status == 'green' and cluster_status.json.number_of_nodes > 1"
+#  when: "dc == 'up' and run_securityadmin|bool"
+  tags:
+    - run_securityadmin
+    - check_status
+
+- debug:
+    msg: "Securityadmin.sh completed successfully!"
+  run_once: true
+  when: "run_securityadmin|bool and exec_result is search('Done with success') and cluster_status.status == 200 and cluster_status.json.status == 'green' and cluster_status.json.number_of_nodes > 1"
+  tags:
+    - run_securityadmin
+    - check_status
+
+- name: Snapshot repository - set up snapshot repository
+  uri:
+    url: "https://{{ ansible_host }}:{{ opensearch['port0'] | default('9200') }}/_snapshot/{{ opensearch_snapshot_repository_name }}"
+    method: PUT
+    return_content: yes
+    user: "{{ opensearch['admin_user'] | default('admin') }}"
+    password: "{{ opensearch['admin_passwd'] | default('admin') }}"
+    validate_certs: no
+    status_code: 200
+    body:
+       type: fs
+       settings:
+         location: /mnt/{{ ansible_hostname }}/{{ ansible_hostname }}_full
+         compress: true
+    body_format: json
+  when: dc == 'up' and opensearch_snapshot|bool
+  tags:
+    - snapshot_repository_setup
+    - snapshot_repository
+
+- name: Snapshot repository - deploy snapshot script
+  template:
+    src: snapshot_opensearch.sh.j2
+    dest: "{{ opensearch_snapshot_script_path }}/snapshot_opensearch.sh"
+    mode: 0775
+    owner: "{{ svc_user }}"
+  when: opensearch_snapshot|bool and opensearch_snapshot_script_path is defined
+  tags:
+    - snapshot_repository_script
+    - snapshot_repository
+
+- name: Snapshot repository - add script to crontab
+  cron:
+    cron_file: '/etc/crontab'
+    user: 'root'
+    name: "Get snapshots of OpenSearch cluster"
+    minute: "0"
+    hour: "{{ opensearch_snapshot_script_cron }}"
+    job: "sh {{ opensearch_snapshot_script_path }}/snapshot_opensearch.sh"
+    state: present
+  when: opensearch_snapshot|bool and opensearch_snapshot_script_cron is defined
+  notify: restart crond
+  tags:
+    - snapshot_repository_script
+    - snapshot_repository_script_cron
+    - snapshot_repository

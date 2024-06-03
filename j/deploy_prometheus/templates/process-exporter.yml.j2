@@ -1,0 +1,108 @@
+process_names:
+  - name: "{% raw %}{{.Comm}}{% endraw %}"
+    comm:
+    - httpd
+    - java
+    - systemd
+    - ipa-dnskeysyncd
+    - named-pkcs11
+    - rsyslogd
+    - ns-slapd
+    - sudo
+    - su
+    - containerd
+    - containerd-shim
+    - sssd_nss
+    - sssd_be
+    - portainer
+    - dockerd
+    - docker-containe
+    - docker-proxy
+    - tarantool
+    - mysqld
+    - systemd-journal
+    - bash
+    - sshd
+    - k3s-agent
+    - node
+{% if 'prometheus' in groups and inventory_hostname in groups['prometheus'] %}
+    - prometheus
+    - pushgateway
+{% endif %}
+{% if 'vm_single' in groups and inventory_hostname in groups['vm_single'] %}
+    - victoria-metrics-prod
+{% endif %}
+{% if 'alertmanager' in groups and inventory_hostname in groups['alertmanager'] or 'alertmanagers_cluster' in groups and inventory_hostname in groups['alertmanagers_cluster'] %}
+    - alertmanager
+{% endif %}
+{% if 'alert_bots' in groups and inventory_hostname in groups['alert_bots'] %}
+    - prometheus_bot
+{% endif %}
+{% if 'grafana' in groups and inventory_hostname in groups['grafana'] or 'grafana_cluster' in groups and inventory_hostname in groups['grafana_cluster'] %}
+    - grafana-server
+{% endif %}
+{% if 'karma' in groups and inventory_hostname in groups['karma'] %}
+    - karma
+{% endif %}
+{% if 'elasticsearch_exporter' in groups and inventory_hostname in groups['elasticsearch_exporter'] %}
+    - elasticsearch_exporter
+{% endif %}
+{% if 'logstash_exporter' in groups and inventory_hostname in groups['logstash_exporter'] %}
+    - logstash_exporter
+{% endif %}
+{% if 'blackbox' in groups and inventory_hostname in groups['blackbox'] %}
+    - blackbox_exporter
+{% endif %}
+{% if 'consul' in groups and inventory_hostname in groups['consul'] and 'consul_is_ready' not in group_names %}
+    - consul
+{% endif %}
+{% if 'cadvisor' in groups and inventory_hostname in groups['cadvisor'] %}
+    - cadvisor
+{% endif %}
+{% if 'nginx' in groups and inventory_hostname in groups['nginx'] %}
+    - nginx
+{% endif %}
+{% if 'beat_exporter' in groups and inventory_hostname in groups['beat_exporter'] %}
+    - filebeat
+    - beat-exporter
+{% endif %}
+{% if 'postgres' in groups and inventory_hostname in groups['postgres'] %}
+    - postgres
+    - postgres_exporter
+{% endif %}
+{% if 'node_exporter' in groups and inventory_hostname in groups['node_exporter'] %}
+    - node_exporter
+    - process-exporter
+{% endif %}
+{% if 'redis_exporter' in groups and inventory_hostname in groups['redis_exporter'] %}
+    - redis-server
+    - redis_exporter
+{% endif %}
+{% if 'pagespeed_exporter' in groups and inventory_hostname in groups['pagespeed_exporter'] %}
+    - pagespeed_exporter
+{% endif %}
+{% if 'full_mortgage' in groups and inventory_hostname in groups['full_mortgage'] %}
+  - name: 'main-mortgage'
+    cmdline:
+    - '.*mortgage-current.*'
+{% endif %}
+{% if 'full_cash' in groups and inventory_hostname in groups['full_cash'] %}
+  - name: 'main-cash'
+    cmdline:
+    - '.*cash-current.*'
+{% endif %}
+{% if 'light_mortgage' in groups and inventory_hostname in groups['light_mortgage'] %}
+  - name: 'mortgage-light'
+    cmdline:
+    - '.*mortgage-current.*'
+{% endif %}
+{% if 'light_cash' in groups and inventory_hostname in groups['light_cash'] %}
+  - name: 'cash-light'
+    cmdline:
+    - '.*cash-current.*'
+{% endif %}
+{% if 'integration' in groups and inventory_hostname in groups['integration'] %}
+  - name: 'integration'
+    cmdline:
+    - '.*integration-current.*'
+{% endif %}

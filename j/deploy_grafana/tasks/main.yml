@@ -1,0 +1,334 @@
+---
+- name: Make subdir for imported dashboard
+  file:
+    path: "{{ playbook_dir }}/imported-dashboards"
+    state: directory
+    mode: '0775'
+    owner: root
+  delegate_to: localhost
+  tags:
+    - copy_dashboards
+    - import_dashboards
+
+- name: Copy dashboards to imported-dashboards folder (single Grafana)
+  find:
+    paths: "{{ playbook_dir }}/roles/grafana/files/"
+    recurse: yes
+    patterns: "*.json"
+  register: dashboards_to_copy
+  delegate_to: localhost
+  tags:
+    - copy_dashboards
+    - import_dashboards
+
+- copy: 
+    src: "{{ item.path }}"
+    dest: "{{ playbook_dir }}/imported-dashboards/"
+    mode: '0775'
+  delegate_to: localhost
+  with_items: "{{ dashboards_to_copy.files }}"
+  tags:
+    - copy_dashboards
+    - import_dashboards
+
+- name: Check api key list
+  uri:
+    url: "http://{{ ansible_host }}:{{ docker['gf_port'] }}/api/auth/keys"
+    user: "{{ gf_user }}"
+    password: "{{ gf_passwd }}"
+    force_basic_auth: true
+    return_content: true
+  no_log: true
+  register: existing_api_keys
+  tags:
+    - api_key
+    - import_dashboards
+
+- name: Create grafana api keys
+  uri:
+    url: "http://{{ ansible_host }}:{{ docker['gf_port'] }}/api/auth/keys"
+    user: "{{ gf_user }}"
+    password: "{{ gf_passwd }}"
+    force_basic_auth: true
+    method: POST
+    body_format: json
+    body: "{{ item | to_json }}"
+  with_items: "{{ grafana_api_keys }}"
+  no_log: true
+  when: ((existing_api_keys['json'] | selectattr("name", "equalto", item['name'])) | list) | length == 0
+  register: new_api_keys
+  tags:
+    - api_key
+    - import_dashboards
+
+- set_fact: 
+    gf_api: >-
+      {{ new_api_keys.results | map(attribute='json.key') | list | first }}
+  with_items: "{{ grafana_api_keys }}"
+  when: ((existing_api_keys['json'] | selectattr("name", "equalto", item['name'])) | list) | length == 0
+  tags:
+    - api_key
+    - import_dashboards
+
+- name: Deploy python script for export dashboards
+  template:
+    src: gf_export.py.j2
+    dest: "{{ app_path }}/gf_export.py"
+    mode: '0775'
+    owner: "{{ svc_user }}"
+  with_items: "{{ grafana_api_keys }}"
+  when: ((existing_api_keys['json'] | selectattr("name", "equalto", item['name'])) | list) | length == 0
+  tags:
+   - api_key
+   - deploy_py_tempates
+   - import_dashboards
+
+- name: Deploy bash scripts for administration Orgs and users
+  template:
+    src: "{{ item.src }}"
+    dest: "{{ app_path }}/{{ item.dest }}"
+    mode: "{{ item.mode }}"
+    owner: "{{ item.user }}"
+  with_items:
+    - { src: 'grafana_add_orgs_users.sh.j2', dest: 'grafana_add_orgs_users.sh', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+    - { src: 'grafana_add_orgs_users.yml.j2', dest: 'grafana_add_orgs_users.yml', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+  tags:
+    - deploy_sh_tempates
+
+- name: Import grafana dashboards through API
+  uri:
+    url: "http://{{ ansible_host }}:{{ docker['gf_port'] }}/api/dashboards/db"
+    user: "{{ gf_user }}"
+    password: "{{ gf_passwd }}"
+    force_basic_auth: yes
+    method: POST
+    body_format: json
+    body: >
+      {
+        "dashboard": {{ lookup("file", item) }},
+        "overwrite": true,
+        "message": "Updated by ansible"
+      }
+  no_log: true
+  with_fileglob:
+    - "{{ playbook_dir }}/imported-dashboards/*.json"
+  delegate_to: localhost
+  tags:
+    - import_dashboards
+
+- name: Create mini kiosk through API
+  uri:
+    url: "http://{{ ansible_host }}:{{ docker['gf_port'] }}/api/playlists"
+    user: "{{ gf_user }}"
+    password: "{{ gf_passwd }}"
+    force_basic_auth: yes
+    method: POST
+    body_format: json
+    body: >
+      {
+        "name": "Kiosk_mini",
+        "interval": "1m",
+        "items": [
+          {
+            "type": "dashboard_by_tag",
+            "value": "mini",
+            "order": 2,
+            "title": "Mini Kiosk"
+          }
+       ]
+      }
+  no_log: true
+  delegate_to: localhost
+  when: mini_kiosk|bool == false
+  tags:
+    - create_kiosk
+
+- name: Create full kiosk through API
+  uri:
+    url: "http://{{ ansible_host }}:{{ docker['gf_port'] }}/api/playlists"
+    user: "{{ gf_user }}"
+    password: "{{ gf_passwd }}"
+    force_basic_auth: yes
+    method: POST
+    body_format: json
+    body: >
+      {
+        "name": "Kiosk_full",
+        "interval": "1m",
+        "items": [
+          {
+            "type": "dashboard_by_tag",
+            "value": "full",
+            "order": 1,
+            "title": "Full Kiosk"
+          }
+       ]
+      }
+  no_log: true
+  delegate_to: localhost
+  when: full_kiosk|bool == false
+  tags:
+    - create_kiosk
+
+- name: Create Grafana organizations
+  uri:
+    url: "http://{{ ansible_host }}:{{ docker['gf_port'] }}/api/orgs"
+    user: "{{ gf_user }}"
+    password: "{{ gf_passwd }}"
+    force_basic_auth: yes
+    method: POST
+    body_format: json
+    status_code: 200, 201, 409
+    body: "{{ item | to_json }}"
+  with_items: "{{ grafana_organization }}"
+  no_log: true
+  delegate_to: localhost
+  when: grafana_organization is defined
+  tags:
+    - addOrgsTeamsUsers
+    - create_orgs
+
+- name: Create Grafana teams
+  uri:
+    url: "http://{{ ansible_host }}:{{ docker['gf_port'] }}/api/teams"
+    user: "{{ gf_user }}"
+    password: "{{ gf_passwd }}"
+    force_basic_auth: yes
+    method: POST
+    body_format: json
+    status_code: 200, 409
+    body: >
+      {
+        "name": "{{ item['name'] }}",
+        "email": "{{ item['email'] }}",
+        "orgId": {{ item['teamId'] }}
+      }
+  with_items: "{{ grafana_team }}"
+  no_log: true
+  delegate_to: localhost
+  when: grafana_team is defined
+  tags:
+    - addOrgsTeamsUsers
+    - create_team
+
+- name: Create Grafana users
+  uri:
+    url: "http://{{ ansible_host }}:{{ docker['gf_port'] }}/api/admin/users"
+    user: "{{ gf_user }}"
+    password: "{{ gf_passwd }}"
+    force_basic_auth: yes
+    method: POST
+    body_format: json
+    status_code: 200, 201, 412
+    body: >
+      {
+        "name": "{{ item['name'] }}",
+        "email": "{{ item['email'] }}",
+        "login": "{{ item['login'] }}",
+        "password": "{{ item['password'] }}",
+        "OrgId": {{ item['OrgId'] }}
+      }
+  with_items: "{{ grafana_users }}"
+  no_log: true
+  delegate_to: localhost
+  when: grafana_organization is defined and grafana_users is defined
+  tags:
+    - addOrgsTeamsUsers
+
+    - create_user
+- name: Determinate user id with Global Admin permissions
+  uri:
+    url: "http://{{ ansible_host }}:{{ docker['gf_port'] }}/api/users/lookup?loginOrEmail={{ item['name'] }}"
+    user: "{{ gf_user }}"
+    password: "{{ gf_passwd }}"
+    force_basic_auth: yes
+    method: GET
+    body_format: json
+  with_items: '{{ grafana_users | selectattr("isGrafanaAdmin", "defined") | selectattr("isGrafanaAdmin", "eq", true) | list }}'
+  no_log: true
+  register: user_id
+  delegate_to: localhost
+  when: grafana_organization is defined and grafana_users is defined
+  tags:
+    - addOrgsTeamsUsers
+    - admins
+
+- set_fact:
+    users_id: "{{ user_id.results | map(attribute='json.id') | list }}"
+  when: grafana_organization is defined and grafana_users is defined
+  tags:
+    - addOrgsTeamsUsers
+    - admins
+
+- name: Add Global Admin permissions to users
+  uri:
+    url: "http://{{ ansible_host }}:{{ docker['gf_port'] }}/api/admin/users/{{ item }}/permissions"
+    user: "{{ gf_user }}"
+    password: "{{ gf_passwd }}"
+    force_basic_auth: yes
+    method: PUT
+    body_format: json
+    body: >
+      {
+        "isGrafanaAdmin": true
+      }
+  with_items: "{{ users_id }}"
+  no_log: true
+  delegate_to: localhost
+  when: grafana_organization is defined and grafana_users is defined
+  tags:
+    - addOrgsTeamsUsers
+    - admins
+
+- name: Determinate user id with Admin role
+  uri:
+    url: "http://{{ ansible_host }}:{{ docker['gf_port'] }}/api/users/lookup?loginOrEmail={{ item['name'] }}"
+    user: "{{ gf_user }}"
+    password: "{{ gf_passwd }}"
+    force_basic_auth: yes
+    method: GET
+    body_format: json
+  with_items: '{{ grafana_users | selectattr("role", "defined") | selectattr("role", "eq", "Admin") | list }}'
+  no_log: true
+  register: role_admin_users
+  delegate_to: localhost
+  when: grafana_organization is defined and grafana_users is defined
+  tags:
+    - addOrgsTeamsUsers
+    - add_role
+
+- set_fact:
+    userid_admin: "{{ role_admin_users.results | map(attribute='json.id') | list }}"
+  when: grafana_organization is defined and grafana_users is defined
+  tags:
+    - addOrgsTeamsUsers
+    - add_role
+
+- set_fact:
+    orgid_admin: "{{ role_admin_users.results | map(attribute='json.orgId') | list }}"
+  when: grafana_organization is defined and grafana_users is defined
+  tags:
+    - addOrgsTeamsUsers
+    - add_role
+
+- name: Add Admin role
+  uri:
+    url: "http://{{ ansible_host }}:{{ docker['gf_port'] }}/api/orgs/{{ item.0 }}/users/{{ item.1 }}"
+    user: "{{ gf_user }}"
+    password: "{{ gf_passwd }}"
+    force_basic_auth: yes
+    method: PATCH
+    body_format: json
+    body: >
+      {
+        "role": "Admin"
+      }
+  with_together:
+    - '{{ orgid_admin }}'
+    - '{{ userid_admin }}'
+  no_log: true
+  delegate_to: localhost
+  when: grafana_organization is defined and grafana_users is defined
+  tags:
+    - addOrgsTeamsUsers
+    - add_role

@@ -1,0 +1,234 @@
+---
+- debug:
+    msg: "Dashboards for '{{ grafana_type }}' monitoring will be install"
+
+- name: "Define a list of dashboards for '{{ grafana_org_name }}' Organization"
+  find:
+    paths: "source_dashboards/{{ grafana_type }}"
+    recurse: yes
+    patterns: "*.json"
+  register: dashboards
+  delegate_to: localhost
+
+# - debug:
+#     msg: "Dashboard: '{{ item.path | basename | replace('.json','') }}' will be install"
+#   loop: "{{ dashboards.files }}"
+#   loop_control: 
+#     label: "{{ item.path }}"
+
+- name: "Host: {{ grafana.path }}, Org: {{ grafana_org_name }} - Check by uid if dashboard already existe before delete"
+  uri:
+    url: "http://{{ grafana.path }}/api/dashboards/uid/{{ (lookup('file', item.path) | from_json).get('uid') }}"
+    user: "{{ grafana_org.user | default(grafana.global_user) }}"
+    password: "{{ grafana_org.passwd | default(grafana.global_passwd) }}"
+    force_basic_auth: true
+    return_content: true
+    status_code: 200, 404
+    headers:
+      x-grafana-org-id: "{{ org_id }}"
+  no_log: true
+  delegate_to: localhost
+  loop: "{{ dashboards.files }}"
+  when: grafana_org.delete_dashboard is defined and grafana_org.delete_dashboard|default('false')
+  register: check
+
+# - debug:
+#     msg: "{{ (item.content | from_json).meta.folderId }}"
+#   loop: "{{ dashboards.files }}"
+#   loop_control: 
+#     label: "{{ item.item.path }}"
+
+- name: "Host: {{ grafana.path }}, Org: {{ grafana_org_name }} - Delete all dashboards via API"
+  uri:
+    url: "http://{{ grafana.path }}/api/dashboards/uid/{{ (item.content | from_json).dashboard.uid }}"
+    user: "{{ grafana_org.user | default(grafana.global_user) }}"
+    password: "{{ grafana_org.passwd | default(grafana.global_passwd) }}"
+    force_basic_auth: yes
+    method: DELETE
+    status_code: 200
+    headers:
+      x-grafana-org-id: "{{ org_id }}"
+  no_log: true
+  loop: "{{ check.results }}"
+  when: (item.status is defined and item.status == 200) and (grafana_org.delete_dashboard is defined and grafana_org.delete_dashboard|default('false'))
+  delegate_to: localhost
+
+- name: "Host: {{ grafana.path }}, Org: {{ grafana_org_name }} - Check by uid if dashboard already existe"
+  uri:
+    url: "http://{{ grafana.path }}/api/dashboards/uid/{{ (lookup('file', item.path) | from_json).get('uid') }}"
+    user: "{{ grafana_org.user | default(grafana.global_user) }}"
+    password: "{{ grafana_org.passwd | default(grafana.global_passwd) }}"
+    force_basic_auth: true
+    return_content: true
+    status_code: 200, 404
+    headers:
+      x-grafana-org-id: "{{ org_id }}"
+  no_log: true
+  delegate_to: localhost
+  loop: "{{ dashboards.files }}"
+  register: find
+
+- name: "Host: {{ grafana.path }}, Org: {{ grafana_org_name }} - New dashboards"
+  debug:
+    msg: "Dashboard '{{ item.item.path | basename | replace('.json','') }}' is newest"
+  loop: "{{ find.results }}"
+  loop_control: 
+    label: "{{ item.item.path }}"
+  when: item.status == 404
+
+- name: "Host: {{ grafana.path }}, Org: {{ grafana_org_name }} - Check by name if folder '{{ grafana_type }}' already existe"
+  uri:
+    url: "http://{{ grafana.path }}/api/folders/{{ grafana_type }}"
+    user: "{{ grafana_org.user | default(grafana.global_user) }}"
+    password: "{{ grafana_org.passwd | default(grafana.global_passwd) }}"
+    force_basic_auth: yes
+    method: GET
+    status_code: 200, 404
+    headers:
+      x-grafana-org-id: "{{ org_id }}"
+  no_log: true
+  delegate_to: localhost
+  register: check_folder
+  when: grafana_org.create_folder is defined and grafana_org.create_folder|default('false')
+
+- name: "Host: {{ grafana.path }}, Org: {{ grafana_org_name }} - Create folder for '{{ grafana_type }}' dashboards"
+  uri:
+    url: "http://{{ grafana.path }}/api/folders"
+    user: "{{ grafana_org.user | default(grafana.global_user) }}"
+    password: "{{ grafana_org.passwd | default(grafana.global_passwd) }}"
+    force_basic_auth: yes
+    method: POST
+    body_format: json
+    body: >
+      {
+        "uid": "{{ grafana_type }}",
+        "title": "{{ grafana_type }}"
+      }
+    status_code: 200, 409
+    headers:
+      x-grafana-org-id: "{{ org_id }}"
+  no_log: true
+  when: (check_folder.status is defined and check_folder.status == 404) and (grafana_org.create_folder is defined and grafana_org.create_folder|default('false'))
+  delegate_to: localhost
+
+- name: "Host: {{ grafana.path }}, Org: {{ grafana_org_name }} - Get '{{ grafana_type }}' folder id"
+  uri:
+    url: "http://{{ grafana.path }}/api/folders/{{ grafana_type }}"
+    user: "{{ grafana_org.user | default(grafana.global_user) }}"
+    password: "{{ grafana_org.passwd | default(grafana.global_passwd) }}"
+    force_basic_auth: yes
+    method: GET
+    status_code: 200
+    headers:
+      x-grafana-org-id: "{{ org_id }}"
+  no_log: true
+  delegate_to: localhost
+  register: folder_id
+  when: grafana_org.create_folder is defined and grafana_org.create_folder|default('false')
+
+- name: "Host: {{ grafana.path }}, Org: {{ grafana_org_name }} - Import new dashboards via API to folder '{{ grafana_type }}'"
+  uri:
+    url: "http://{{ grafana.path }}/api/dashboards/db"
+    user: "{{ grafana_org.user | default(grafana.global_user) }}"
+    password: "{{ grafana_org.passwd | default(grafana.global_passwd) }}"
+    force_basic_auth: yes
+    method: POST
+    body_format: json
+    body: >
+      {
+        "dashboard": {{ lookup("file", item.item.path) }},
+        "folderId": {{ folder_id.json.id }},
+        "message": "=Ansible managed=New dashboard with version {{ (lookup('file', item.item.path) | from_json).get('title').split('-') | last }} added=",
+        "overwrite": true
+      }
+    status_code: 200
+    headers:
+      x-grafana-org-id: "{{ org_id }}"
+  no_log: true
+  loop: "{{ find.results }}"
+  when: item.status == 404 and (grafana_org.create_folder is defined and grafana_org.create_folder|default('false'))
+  delegate_to: localhost
+
+- name: "Host: {{ grafana.path }}, Org: {{ grafana_org_name }} - Import new dashboards via API to 'General' folder"
+  uri:
+    url: "http://{{ grafana.path }}/api/dashboards/db"
+    user: "{{ grafana_org.user | default(grafana.global_user) }}"
+    password: "{{ grafana_org.passwd | default(grafana.global_passwd) }}"
+    force_basic_auth: yes
+    method: POST
+    body_format: json
+    body: >
+      {
+        "dashboard": {{ lookup("file", item.item.path) }},
+        "message": "=Ansible managed=New dashboard with version {{ (lookup('file', item.item.path) | from_json).get('title').split('-') | last }} added=",
+        "overwrite": true
+      }
+    status_code: 200
+    headers:
+      x-grafana-org-id: "{{ org_id }}"
+  no_log: true
+  loop: "{{ find.results }}"
+  when: item.status == 404 and (grafana_org.create_folder is undefined or not grafana_org.create_folder)
+  delegate_to: localhost
+
+- name: "Host: {{ grafana.path }}, Org: {{ grafana_org_name }} - Dashboards that already exists"
+  debug:
+#   msg: "Dashboard '{{ item.item.path | basename | replace('.json','') }}' with current version '{{  }}' already exists and will be overwritten"
+    msg: "Dashboard '{{ (item.content | from_json).dashboard.title }}' already exists"
+  loop: "{{ find.results }}"
+  loop_control: 
+    label: "{{ item.item.path }}"
+  when: item.status == 200 and (item.content | from_json).dashboard.title.split('-')|last == (lookup('file', item.item.path) | from_json).get('title').split('-')|last
+
+- name: "Host: {{ grafana.path }}, Org: {{ grafana_org_name }} - Dashboards that will be overwritten with new version"
+  debug:
+    msg: "Dashboard '{{ (item.content | from_json).dashboard.title }}' will be overwritten"
+  loop: "{{ find.results }}"
+  loop_control: 
+    label: "{{ item.item.path }}"
+  when: item.status == 200 and (item.content | from_json).dashboard.title.split('-')|last != (lookup('file', item.item.path) | from_json).get('title').split('-')|last
+
+- name: "Host: {{ grafana.path }}, Org: {{ grafana_org_name }} - Import new versions of dashboards via API to folder '{{ grafana_type }}'"
+  uri:
+    url: "http://{{ grafana.path }}/api/dashboards/db"
+    user: "{{ grafana_org.user | default(grafana.global_user) }}"
+    password: "{{ grafana_org.passwd | default(grafana.global_passwd) }}"
+    force_basic_auth: yes
+    method: POST
+    body_format: json
+    body: >
+      {
+        "dashboard": {{ lookup("file", item.item.path) }},
+        "folderId": {{ folder_id.json.id }},
+        "message": "=Ansible managed=Swith from {{ (item.content | from_json).dashboard.title.split('-') | last }} to {{ (lookup('file', item.item.path) | from_json).get('title').split('-') | last }} version=",
+        "overwrite": true
+      }
+    status_code: 200
+    headers:
+      x-grafana-org-id: "{{ org_id }}"
+  no_log: true
+  loop: "{{ find.results }}"
+  when: item.status == 200 and (item.content | from_json).dashboard.title.split('-')|last != (lookup('file', item.item.path) | from_json).get('title').split('-')|last and grafana_org.create_folder is defined and grafana_org.create_folder|default('false')
+  delegate_to: localhost
+
+- name: "Host: {{ grafana.path }}, Org: {{ grafana_org_name }} - Import new versions of dashboards via API to 'General' folder"
+  uri:
+    url: "http://{{ grafana.path }}/api/dashboards/db"
+    user: "{{ grafana_org.user | default(grafana.global_user) }}"
+    password: "{{ grafana_org.passwd | default(grafana.global_passwd) }}"
+    force_basic_auth: yes
+    method: POST
+    body_format: json
+    body: >
+      {
+        "dashboard": {{ lookup("file", item.item.path) }},
+        "message": "=Ansible managed=Swith from {{ (item.content | from_json).dashboard.title.split('-') | last }} to {{ (lookup('file', item.item.path) | from_json).get('title').split('-') | last }} version=",
+        "overwrite": true
+      }
+    status_code: 200
+    headers:
+      x-grafana-org-id: "{{ org_id }}"
+  no_log: true
+  loop: "{{ find.results }}"
+  when: item.status == 200 and (item.content | from_json).dashboard.title.split('-')|last != (lookup('file', item.item.path) | from_json).get('title').split('-')|last and (grafana_org.create_folder is undefined or not grafana_org.create_folder)
+  delegate_to: localhost

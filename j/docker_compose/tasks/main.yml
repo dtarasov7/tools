@@ -1,0 +1,43 @@
+---
+- name: "Log into {{ docker_local }}"
+  docker_login:
+    registry_url: "{{ docker_local }}"
+    username: "{{ docker_local_user }}"
+    password: "{{ docker_local_passwd }}"
+    state: present
+  when: "not docker_hub and dc == 'up'"
+   
+- name: Docker-compose up
+  shell: docker-compose up -d
+  args:
+    chdir: "{{ app_path }}"
+  when: dc == 'up'
+
+- name: "Logout from {{ docker_local }}"
+  docker_login:
+    registry_url: "{{ docker_local }}"
+    state: absent
+  when: "not docker_hub and dc == 'up'"
+
+- name: Check Prometheus config files  
+  shell: docker exec prometheus /bin/promtool check config /etc/prometheus/prometheus.yml
+  register: check_config
+  when: "'prometheus' in group_names"
+  tags: checks
+
+- debug:
+    msg: "Promtool check SUCCESS\n{{ check_config.stdout }}"
+  when: "'prometheus' in group_names and check_config.rc == 0"
+  changed_when: False
+  tags: checks
+
+- name: Re-read Prometheus config files  
+  shell: "curl -X POST http://{{ prom_user }}:{{ prom_passwd }}@localhost:{{ docker['prom_port'] }}/-/reload"
+  when: "'prometheus' in group_names"
+  tags: prom_reload
+
+- name: Docker-compose down
+  shell: docker-compose down
+  args:
+    chdir: "{{ app_path }}"
+  when: dc == 'down'

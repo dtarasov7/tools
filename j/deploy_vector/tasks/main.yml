@@ -1,0 +1,136 @@
+- name: "Vector: make data dir(s)"
+  file:
+    path: "{{ item.path }}"
+    state: directory
+    mode: "{{ item.mode }}"
+    owner: "{{ item.user | default('root') }}"
+  with_items:
+    - { path: '{{ vector_data_dir }}', group: 'docker', user: '{{ svc_user }}', mode: '0755' }
+    - { path: '{{ vector_data_dir }}/config', group: 'docker', user: '{{ svc_user }}', mode: '0755' }
+    - { path: '{{ vector_data_dir }}/vector.data', group: 'docker', user: '{{ svc_user }}', mode: '0755' }
+    - { path: '{{ vector_data_dir }}/unmatched', group: 'docker', user: '{{ svc_user }}', mode: '0755' }
+  tags:
+    - make_dir
+ 
+- name: "Vector: copy managed scripts to host(s)"
+  copy:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    mode: "{{ item.mode }}"
+    owner: "{{ item.user | default('root') }}"
+  with_items:
+    - { src: 'down', dest: '{{ vector_data_dir }}/down', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+    - { src: 'logs', dest: '{{ vector_data_dir }}/logs', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+    - { src: 'rst', dest: '{{ vector_data_dir }}/rst', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+    - { src: 'up', dest: '{{ vector_data_dir }}/up', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+    - { src: 'up_l', dest: '{{ vector_data_dir }}/up_l', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+  tags:
+    - copy_files
+
+# - name: "Vector: deploy config file(s)"
+#   template:
+#     src:  "vector_config.j2"
+#     dest: "{{ vector_data_dir }}/config/{{ conf.name }}.yaml"
+#     owner: "{{ svc_user | default('root') }}"
+#     mode: '0664'
+#     backup: yes
+#   no_log: true
+#   loop: "{{ vector_config }}"
+#   loop_control:
+#     loop_var: conf
+#   tags: deploy_vector_config
+
+- name: "Vector: deploy global config file"
+  blockinfile:
+    dest: "{{ vector_data_dir }}/config/global_settings.yaml"
+    create: true
+    state: present
+    backup: yes
+    block: |
+        ## Global configuration parameters
+        # more parameters https://vector.dev/docs/reference/configuration/global-options/
+        {{ global_vector_config | to_nice_yaml }}
+  register: global_conf
+  no_log: true
+  when: global_vector_config is defined #inventory_hostname in groups['vector_aggregator']
+  tags: deploy_global_vector_config
+
+- name: "Vector: deploy config file(s)"
+  blockinfile:
+    dest: "{{ vector_data_dir }}/config/{{ conf.name }}.yaml"
+    create: true
+    state: present
+    backup: yes
+    block: |
+        {{ conf['config'] }}
+  no_log: true
+  loop: "{{ vector_config }}"
+  loop_control:
+    loop_var: conf
+  tags: deploy_vector_config
+
+- name: "Vector: modify config file(s)"
+  replace:
+    path: "{{ vector_data_dir }}/config/{{ item.0.name }}.yaml"
+    regexp: "{{ item.1.pattern }}"
+    replace: "{{ item.1.string }}"
+  loop: "{{ vector_config | product(regex) | list }}"
+  loop_control:
+    label: "{{ item.0.name }}"
+  #with_nested:
+  #  - "{{ vector_config }}"
+  #  - "{{ regex }}"
+  tags:
+    - deploy_vector_config 
+    - modify_vector_config
+
+- name: "Vector: deploy docker-compose file"
+  template:
+    src:  docker-compose.yaml.j2
+    dest: "{{ vector_data_dir }}/docker-compose.yaml"
+    owner: "{{ svc_user | default('root') }}"
+    group: docker
+    mode: '0664'
+    backup: yes
+  tags: deploy_vector_dc
+
+- name: "Vector: docker-compose pull"
+  shell: docker-compose pull
+  args:
+    chdir: '{{ vector_data_dir }}'
+  when: dc == 'up'
+
+- name: "Vector: docker-compose up"
+  shell: docker-compose up -d
+  args:
+    chdir: '{{ vector_data_dir }}'
+  when: dc == 'up'
+
+- name: "Vector: restart vector-agent"
+  shell: 'docker restart $(docker ps -aqf "name=vector-agent")'
+  args:
+    chdir: '{{ vector_data_dir }}'
+  when: dc == 'restart' and inventory_hostname in groups['vector_agent']
+
+- name: "Vector: restart vector-aggregator"
+  shell: 'docker restart $(docker ps -aqf "name=vector-aggregator")'
+  args:
+    chdir: '{{ vector_data_dir }}'
+  when: dc == 'restart' and inventory_hostname in groups['vector_aggregator']
+
+- name: "Vector: applying new global settings for vector-aggregator"
+  shell: 'docker restart $(docker ps -aqf "name=vector-ag*")'
+  args:
+    chdir: '{{ vector_data_dir }}'
+  register: status
+  until: status.rc == 0
+  retries: 10
+  delay: 5
+  ignore_errors: true
+  when: global_vector_config is defined and global_conf.changed
+
+- name: "Vector: docker-compose down"
+  shell: docker-compose down
+  args:
+    chdir: '{{ vector_data_dir }}'
+  when: dc == 'down'

@@ -1,0 +1,34 @@
+apiVersion: 1
+
+deleteDatasources:
+  - name: 'Prometheus'
+
+datasources:
+- name: 'Prometheus'
+  type: 'prometheus'
+  access: 'proxy'
+  url: 'http://{{ ansible_host }}:{{ docker['prom_port'] }}'
+  basicAuth: true
+  basicAuthUser: {{ prom_user }}
+  secureJsonData:
+    basicAuthPassword: {{ prom_passwd }}
+{% if 'victoria_metrics' in groups %}
+  isDefault: false
+{% else %}
+  isDefault: true
+{% endif %}
+  version: 1
+  editable: true
+{% if 'victoria_metrics' in groups %}
+- name: 'VictoriaMetrics'
+  type: 'prometheus'
+  access: 'proxy'
+  url: 'http://{{ ansible_host }}:{{ docker['victoriametrics_port'] }}'
+  basicAuth: true
+  basicAuthUser: {{ victoriametrics_user }}
+  secureJsonData:
+    basicAuthPassword: {{ victoriametrics_passwd }}
+  isDefault: true
+  version: 1
+  editable: true
+{% endif %}

@@ -1,0 +1,49 @@
+{% for host in groups['full_cash'] %}
+- targets: ['{{ hostvars[host]['ansible_host'] }}:{{ app_fullcash_port }}']
+  labels:
+    host: {{ hostvars[host]['inventory_hostname'] }}
+    application: {{ hostvars[host]['full_cash_label'] }}
+{% endfor %}
+{% for host in groups['full_mortgage'] %}
+- targets: ['{{ hostvars[host]['ansible_host'] }}:{{ app_fullmortgage_port }}']
+  labels:
+    host: {{ hostvars[host]['inventory_hostname'] }}
+    application: {{ hostvars[host]['full_mortgage_label'] }}
+{% endfor %}
+{% for host in groups['light_cash'] %}
+- targets: ['{{ hostvars[host]['ansible_host'] }}:{{ app_lightcash_port }}']
+  labels:
+    host: {{ hostvars[host]['inventory_hostname'] }}
+    application: {{ hostvars[host]['light_cash_label'] }}
+{% endfor %}
+{% for host in groups['light_mortgage'] %}
+- targets: ['{{ hostvars[host]['ansible_host'] }}:{{ app_lightmortgage_port }}']
+  labels:
+    host: {{ hostvars[host]['inventory_hostname'] }}
+    application: {{ hostvars[host]['light_mortgage_label'] }}
+{% endfor %}
+{% for host in groups['mqlistener'] %}
+- targets: ['{{ hostvars[host]['ansible_host'] }}:{{ app_mqlistener_port }}']
+  labels:
+    host: {{ hostvars[host]['inventory_hostname'] }}
+    application: {{ hostvars[host]['mqlistener_label'] }}
+{% endfor %}
+{% for host in groups['mock'] %}
+- targets: ['{{ hostvars[host]['ansible_host'] }}:{{ app_mock_port }}']
+  labels:
+    host: {{ hostvars[host]['inventory_hostname'] }}
+    application: {{ hostvars[host]['mock_label'] }}
+{% endfor %}
+{% for host in groups['soap_mock'] %}
+- targets: ['{{ hostvars[host]['ansible_host'] }}:{{ app_soapmock_port }}']
+  labels:
+    host: {{ hostvars[host]['inventory_hostname'] }}
+    application: {{ hostvars[host]['soap_mock_label'] }}
+{% endfor %}
+{% for host in groups['esia_emulation'] %}
+- targets: ['{{ hostvars[host]['ansible_host'] }}:{{ app_esiaemulation_port }}']
+  labels:
+    host: {{ hostvars[host]['inventory_hostname'] }}
+    application: {{ hostvars[host]['esia_emulation_label'] }}
+{% endfor %}
+

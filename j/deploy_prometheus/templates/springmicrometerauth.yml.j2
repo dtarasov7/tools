@@ -1,0 +1,6 @@
+{% for host in groups['integration'] %}
+- targets: ['{{ hostvars[host]['ansible_host'] }}:{{ app_integration_port }}']
+  labels:
+    host: {{ hostvars[host]['inventory_hostname'] }}
+    application: {{ hostvars[host]['integration_label'] }}
+{% endfor %}

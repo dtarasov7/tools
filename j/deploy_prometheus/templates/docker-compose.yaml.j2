@@ -1,0 +1,812 @@
+version: '3.1'
+
+{% if 'consul_is_ready' not in group_names and ('prometheus' in group_names or 'grafana' in group_names or 'victoria_metrics' in group_names or 'alertmanagers_cluster' in group_names) %}
+volumes:
+{% if 'prometheus' in groups and inventory_hostname in groups['prometheus'] %}    prometheus_data: {}
+{% endif %}
+{% if 'grafana' in groups and inventory_hostname in groups['grafana'] %}    grafana_data: {}
+{% endif %}
+{% if 'victoria_metrics' in groups and inventory_hostname in groups['victoria_metrics'] %}    victoriametrics_data: {}
+{% endif %}
+{% if 'alertmanagers_cluster' in groups and inventory_hostname in groups['alertmanagers_cluster'] %}    alertmanager_data: {}
+{% endif %}
+{% if 'consul' in groups and inventory_hostname in groups['consul'] %}
+{% if consul_server is defined and consul_server|bool %}    consul_data: {}
+{% endif %}
+{% endif %}
+{% endif %}
+
+services:
+{% if 'prometheus' in groups and inventory_hostname in groups['prometheus'] %}
+  prometheus:
+{% if docker_hub|bool %}
+    image: "{{ docker['docker_reg_prom'] }}/prometheus:{{ docker['prom_ver'] }}"
+{% else %}
+    image: "{{ docker_local }}/{{ docker['docker_reg_prom'] }}/prometheus:{{ docker['prom_ver'] }}"
+{% endif %}
+    hostname: "{{ inventory_hostname }}"
+    container_name: prometheus
+    user: root
+    volumes:
+      - ./{{ prom_data_dir }}:/etc/prometheus/
+      - {{ docker_path }}/prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--web.config.file=/etc/prometheus/web.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=7d'
+      - '--web.enable-lifecycle'
+    ports:
+      - {{ docker['prom_port'] }}:9090
+    restart: unless-stopped
+    labels:
+      app: "prometheus"
+      product_id: "prom-prom"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "prometheus"
+{% endif -%}
+
+{% if 'victoria_metrics' in groups and inventory_hostname in groups['victoria_metrics'] %}
+  victoria-metrics:
+{% if docker_hub|bool %}
+    image: {{ docker['docker_reg_victoriametrics'] }}/victoria-metrics:{{ docker['victoriametrics_ver'] }}
+{% else %}
+    image: {{ docker_local }}/{{ docker['docker_reg_victoriametrics'] }}/victoria-metrics:{{ docker['victoriametrics_ver'] }}
+{% endif %}
+    container_name: victoria-metrics
+    restart: unless-stopped
+    volumes:
+      - {{ docker_path }}/victoriametrics_data:/victoria-metrics-data
+    command:
+      - '--retentionPeriod=3'
+      - '--dedup.minScrapeInterval={{ victoriametrics['scrape_interval'] }}'
+{% if victoriametrics_user is defined and victoriametrics_passwd is defined %}
+      - '--httpAuth.username={{ victoriametrics_user }}'
+      - '--httpAuth.password={{ victoriametrics_passwd }}'
+{% endif %}
+    ports:
+      - {{ docker['victoriametrics_port'] }}:8428
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "victoriametrics"
+    labels:
+      app: "prometheus"
+      product_id: "vm-prom"
+{% endif -%}
+
+{% if 'victoria_metrics_backup' in groups and inventory_hostname in groups['victoria_metrics_backup'] %}
+  vmbackupmanager:
+{% if docker_hub|bool %}
+    image: {{ docker['docker_reg_victoriametrics'] }}/vmbackupmanager:{{ docker['vmbackupmanager_ver'] }}
+{% else %}
+    image: {{ docker_local }}/{{ docker['docker_reg_victoriametrics'] }}/vmbackupmanager:{{ docker['vmbackupmanager_ver'] }}
+{% endif %}
+    container_name: vmbackupmanager
+    restart: unless-stopped
+    depends_on:
+      - "victoria-metrics"
+    volumes:
+      - {{ docker_path }}/victoriametrics_data:/victoria-metrics-data
+      - {{ vmbackupmanager_path }}:/bk_data
+#      - /etc/localtime:/etc/localtime
+    command:
+      - '--eula'
+#      - '--runOnStart'
+{% if keepLastHourly is defined %}
+      - '--keepLastHourly={{ keepLastHourly }}'
+{% else %}
+      - '-disableHourly'
+{% endif %}
+{% if keepLastDaily is defined %}
+      - '--keepLastDaily={{ keepLastDaily }}'
+{% else %}
+      - '--disableDaily'
+{% endif %}
+{% if keepLastWeekly is defined %}
+      - '--keepLastWeekly={{ keepLastWeekly }}'
+{% else %}
+      - '--disableWeekly'
+{% endif %}
+{% if keepLastMonthly is defined %}
+      - '--keepLastMonthly={{ keepLastMonthly }}'
+{% else %}
+      - '--disableMonthly'
+{% endif %}
+      - '--storageDataPath=/victoria-metrics-data'
+      - '--loggerTimezone=Europe/Moscow'
+      - '--snapshot.createURL=http://{{ ansible_host }}:{{ docker['victoriametrics_port'] }}/snapshot/create'
+      - '--dst=fs://{{ vmbackupmanager_path }}'
+{% if victoriametrics_user is defined and victoriametrics_passwd is defined %}
+      - '--httpAuth.username={{ victoriametrics_user }}'
+      - '--httpAuth.password={{ victoriametrics_passwd }}'
+{% endif %}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "vmbackupmanager"
+    labels:
+      app: "prometheus"
+      product_id: "vmbackupmanager-prom"
+{% endif -%}
+
+{% if 'nginx' in groups and inventory_hostname in groups['nginx'] %}
+  nginx:
+{% if docker_hub|bool %}
+    image: nginx:{{ docker['nginx_ver'] }}
+{% else %}
+    image: {{ docker_local }}/nginx:{{ docker['nginx_ver'] }}
+{% endif %}
+    hostname: "{{ inventory_hostname }}"
+    container_name: nginx
+    restart: unless-stopped
+    volumes:
+      - ./{{ nginx_data_dir }}/prometheus.htpasswd:/etc/nginx/prometheus.htpasswd
+      - ./{{ nginx_data_dir }}/prometheus.conf:/etc/nginx/conf.d/prometheus.conf
+      - ./{{ nginx_data_dir }}/nginx.conf:/etc/nginx/nginx.conf
+    ports:
+      - {{ nginx['victoriametrics_port'] }}:9191
+    labels:
+      app: "prometheus"
+      product_id: "nginx-prom"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "nginx"
+{% endif -%}
+
+{% if 'grafana' in groups and inventory_hostname in groups['grafana'] %}
+  grafana:
+{% if docker_hub|bool %}
+    image: {{ docker['docker_reg_gf'] }}/grafana:{{ docker['grafana_ver'] }}
+{% else %}
+    image: {{ docker_local }}/{{ docker['docker_reg_gf'] }}/grafana:{{ docker['grafana_ver'] }}
+{% endif %}
+    hostname: "{{ inventory_hostname }}"
+    container_name: grafana
+    volumes:
+      - {{ docker_path }}/grafana_data:/var/lib/grafana
+      - ./{{ grafana_data_dir }}/datasources:/etc/grafana/provisioning/datasources
+#      - ./{{ grafana_data_dir }}/dashboards:/etc/grafana/provisioning/dashboards
+      - ./{{ grafana_data_dir }}/plugins:/var/lib/grafana/plugins
+    environment:
+      - GF_SECURITY_ADMIN_USER={{ gf_user }}
+      - GF_SECURITY_ADMIN_PASSWORD={{ gf_passwd }}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    restart: unless-stopped
+    ports:
+      - {{ docker['gf_port'] }}:3000
+    labels:
+      app: "prometheus"
+      product_id: "grafana-prom"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "grafana"
+{% endif -%}
+
+{% if 'cadvisor' in groups and inventory_hostname in groups['cadvisor'] %}
+  cadvisor:
+{% if docker_hub|bool %}
+    image: {{ docker['docker_reg_cadvisor'] }}/cadvisor:{{ docker['cadvisor_ver'] }}
+{% else %}
+    image: {{ docker_local }}/{{ docker['docker_reg_cadvisor'] }}/cadvisor:{{ docker['cadvisor_ver'] }}
+{% endif %}
+    hostname: "{{ inventory_hostname }}"
+    container_name: cadvisor
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:rw
+      - /sys:/sys:ro
+      - {{ dockerRootDir.DockerRootDir }}:/var/lib/docker:ro
+      - /cgroup:/cgroup:ro
+      - ./{{ cadvisor_data_dir }}/web.htpasswd:/etc/web.htpasswd
+    restart: unless-stopped
+    command:
+      - "-allow_dynamic_housekeeping=false"
+      - "-global_housekeeping_interval=30s"
+      - "-housekeeping_interval=5s"
+      - "-docker_only=true"
+      - "-storage_duration=30s"
+      - "-http_auth_file=/etc/web.htpasswd"
+      - "-http_auth_realm=localhost"
+    ports:
+      - {{ docker['cadvisor_port'] }}:8080
+    labels:
+      app: "prometheus"
+      product_id: "cadvisor-prom"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "cadvisor"
+{% endif -%}
+
+{% if 'nginxlog' in groups and inventory_hostname in groups['nginxlog'] %}
+  nginxlog:
+{% if docker_hub|bool %}
+    image: {{ docker['docker_reg_nginxlog'] }}/prometheus-nginxlog-exporter:{{ docker['nginxlog_ver'] }}
+{% else %}
+    image: {{ docker_local }}/{{ docker['docker_reg_nginxlog'] }}/prometheus-nginxlog-exporter:{{ docker['nginxlog_ver'] }}
+{% endif %}    
+    container_name: nginxlog
+    restart: unless-stopped
+    volumes:
+      - ./{{ nginxlog_data_dir }}/prometheus-nginxlog-exporter.yml:/etc/prometheus-nginxlog-exporter.yml
+{% for host in groups['nginxlog'] %}
+{% if mortgage_access|bool %}
+      - {{ mortgage['local_path'] }}/{{ mortgage['source_files'] }}:/mnt/nginxlogs/{{ mortgage['source_files'] }}
+{% endif -%}
+{% if cash_access|bool %}
+      - {{ cash['local_path'] }}/{{ cash['source_files'] }}:/mnt/nginxlogs/{{ cash['source_files'] }}
+{% endif -%}
+{% endfor %}
+    command:
+      - "-config-file=/etc/prometheus-nginxlog-exporter.yml"
+    ports:
+      - {{ docker['nginxlog_port'] }}:4040
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "nginxlog"
+    labels:
+      app: "prometheus"
+      product_id: "nginxlog-prom"
+{% endif -%}
+
+{% if 'elasticsearch_exporter' in groups and inventory_hostname in groups['elasticsearch_exporter'] %}
+  elasticsearch_exporter:
+{% if docker_hub|bool %}
+    image: {{ docker['docker_reg_elexp'] }}/elasticsearch-exporter:{{ docker['elsrchexporter_ver'] }}
+{% else %}
+    image: {{ docker_local }}/{{ docker['docker_reg_elexp'] }}/elasticsearch-exporter:{{ docker['elsrchexporter_ver'] }}
+{% endif %}
+    hostname: "{{ inventory_hostname }}"
+    container_name: elasticsearch_exporter
+    command:
+      - "--es.uri={% if es_https|bool %}https{% else %}http{% endif %}://{% if el_user is defined and el_user|length %}{{ el_user }}:{{ el_passwd }}@{% endif %}{{ ansible_host}}:{{ es_port }}"
+      - '--es.indices'
+      - '--es.snapshots'
+      - '--es.shards'
+      - '--es.indices_settings'
+{% if es_https|bool %}
+      - '--es.ssl-skip-verify'
+{% endif %}
+    restart: unless-stopped
+    ports:
+      - {{ docker['elexp_port'] }}:9114
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "elasticsearchexp"
+    labels:
+      app: "prometheus"
+      product_id: "elasticsearchexp-prom"
+{% endif -%}
+
+{% if 'logstash_exporter' in groups and inventory_hostname in groups['logstash_exporter'] %}
+  logstash_exporter:
+{% if docker_hub|bool %}
+    image: {{ docker['docker_reg_logstashexp'] }}/logstash_exporter:{{ docker['logstashexp_ver'] }}
+{% else %}
+    image: {{ docker_local }}/{{ docker['docker_reg_logstashexp'] }}/logstash_exporter:{{ docker['logstashexp_ver'] }}
+{% endif %}
+    hostname: "{{ inventory_hostname }}"
+    container_name: logstash_exporter
+    ports:
+      - "{{ docker['logstashexp_port'] }}:9198"
+    command:
+      - '--logstash.endpoint=http://{{ ansible_host }}:{{ logstash_port }}'
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "logstashexp"
+    labels:
+      app: "prometheus"
+      product_id: "logstashexp-prom"
+{% endif -%}
+
+{% if 'blackbox' in groups and inventory_hostname in groups['blackbox'] %}
+  blackbox_exporter:
+{% if docker_hub|bool %}
+    image: {{ docker['docker_reg_bb'] }}/blackbox-exporter:{{ docker['bb_ver'] }}
+{% else %}
+    image: {{ docker_local }}/{{ docker['docker_reg_bb'] }}/blackbox-exporter:{{ docker['bb_ver'] }}
+{% endif %}
+    hostname: "{{ inventory_hostname }}"
+    container_name: blackboxexporter
+    restart: unless-stopped
+    volumes:
+      - ./{{ bb_data_dir }}:/etc/blackbox_exporter/
+    ports:
+      - {{ docker['bb_port'] }}:9115
+    labels:
+      app: "prometheus"
+      product_id: "bb-prom"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "bb"
+{% endif -%}
+
+{% if 'node_exporter' in groups and inventory_hostname in groups['node_exporter'] %}
+  node_exporter:
+{% if docker_hub|bool %}
+    image: {{ docker['docker_reg_nodeexp'] }}/node-exporter:{{ docker['nodeexporter_ver'] }}
+{% else %}
+    image: {{ docker_local }}/{{ docker['docker_reg_nodeexp'] }}/node-exporter:{{ docker['nodeexporter_ver'] }}
+{% endif %}
+    container_name: nodeexporter
+    user: root
+    privileged: true
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+      - /:/host:ro
+      - ./{{ nodeexp_data_dir }}/web-config.yml:/etc/web-config.yml
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--path.rootfs=/host'
+      - '--collector.filesystem.ignored-mount-points=^/(sys|proc|dev|run|var/lib/docker/.+)($$|/)'
+      - '--collector.filesystem.ignored-fs-types=^(autofs|binfmt_misc|bpf|cgroup2?|configfs|debugfs|devpts|devtmpfs|fusectl|hugetlbfs|mqueue|nfs4|nsfs|overlay|proc|procfs|pstore|rpc_pipefs|securityfs|selinuxfs|squashfs|sysfs|tracefs|tmpfs)$$'
+      - '--collector.netstat.fields=(.*)'
+      - '--collector.vmstat.fields=(.*)'
+      - '--collector.interrupts'
+      - '--web.config=/etc/web-config.yml'
+    restart: unless-stopped
+    ports:
+      - {{ docker['nodeexp_port'] }}:9100
+    labels:
+      app: "prometheus"
+      product_id: "nodeexporter-prom"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "nodeexporter"
+  process_exporter:
+{% if docker_hub|bool %}
+    image: {{ docker['docker_reg_procexp'] }}/process-exporter:{{ docker['procexp_ver'] }}
+{% else %}
+    image: {{ docker_local }}/{{ docker['docker_reg_procexp'] }}/process-exporter:{{ docker['procexp_ver'] }}
+{% endif %}
+    container_name: process_exporter
+    privileged: true
+    volumes:
+      - /proc:/host/proc:ro
+      - ./{{ processexp_data_dir }}/process-exporter.yml:/config/process-exporter.yml
+    command:
+      - '-config.path=/config/process-exporter.yml'
+      - '--procfs=/host/proc'
+    restart: unless-stopped
+    ports:
+      - {{ docker['procexp_port'] }}:9256
+    labels:
+      app: "prometheus"
+      product_id: "processexporter-prom"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "processexporter"
+{% endif -%}
+
+{% if 'pushgateway' in groups and inventory_hostname in groups['pushgateway'] %}
+  pushgateway:
+{% if docker_hub|bool %}
+    image: {{ docker['docker_reg_pushgw'] }}/pushgateway:{{ docker['pushgw_ver'] }}
+{% else %}
+    image: {{ docker_local }}/{{ docker['docker_reg_pushgw'] }}/pushgateway:{{ docker['pushgw_ver'] }}
+{% endif %}
+    hostname: "{{ inventory_hostname }}"
+    container_name: pushgateway
+    restart: unless-stopped
+    ports:
+      - {{ docker['pushgw_port'] }}:9091
+    labels:
+      app: "prometheus"
+      product_id: "pushgtw-prom"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "pushgateway"
+{% endif -%}
+
+{% if 'kafka_exporter' in groups and inventory_hostname in groups['kafka_exporter'] %}
+  kafka-exporter:
+{% if docker_hub|bool %}
+    image: {{ docker['docker_reg_kafkaexp'] }}/kafka-exporter:{{ docker['kafkaexporter_ver'] }}
+{% else %}
+    image: {{ docker_local }}/{{ docker['docker_reg_kafkaexp'] }}/kafka-exporter:{{ docker['kafkaexporter_ver'] }}
+{% endif %}
+    container_name: kafka-exporter
+    restart: unless-stopped
+#    network_mode: "host"
+    ports:
+      - {{ docker['redisexp_port'] }}:9308
+    command:
+      - '--kafka.server={{ docker['kafka_server'] | default(localhost)}}:{{ docker['kafka_server_port'] }}'
+    labels:
+      app: "prometheus"
+      product_id: "kafkaexporter-prom"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "kafkaexporter"
+{% endif -%}
+
+{% if 'redis_exporter' in groups and inventory_hostname in groups['redis_exporter'] %}
+  redis-exporter:
+{% if docker_hub|bool %}
+    image: {{ docker['docker_reg_redisexp'] }}/redis_exporter:{{ docker['redisexporter_ver'] }}
+{% else %}
+    image: {{ docker_local }}/{{ docker['docker_reg_redisexp'] }}/redis_exporter:{{ docker['redisexporter_ver'] }}
+{% endif %}
+    container_name: redis-exporter
+    restart: unless-stopped
+    ports:
+      - {{ docker['redisexp_port'] }}:9121
+    labels:
+      app: "prometheus"
+      product_id: "redisexporter-prom"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "redisexporter"
+{% endif -%}
+
+{% if 'beat_exporter' in groups and inventory_hostname in groups['beat_exporter'] %}
+  beat_exporter:
+{% if docker_hub|bool %}
+    image: {{ docker['docker_reg_beatexp'] }}/beat-exporter:{{ docker['beatexporter_ver'] }}
+{% else %}
+    image: {{ docker_local }}/{{ docker['docker_reg_beatexp'] }}/beat-exporter:{{ docker['beatexporter_ver'] }}
+{% endif %}
+    hostname: "{{ inventory_hostname }}"
+    container_name: beat_exporter
+    restart: unless-stopped
+    ports:
+      - {{ docker['beatexporter_port'] }}:9479
+    command:
+      - '-beat.uri=http://{{ ansible_host }}:{{ filebeat_port }}'
+    labels:
+      app: "prometheus"
+      product_id: "beatexp-prom"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "beatexporter"
+{% endif -%}
+
+{% if 'websocket_exporter' in groups and inventory_hostname in groups['websocket_exporter'] %}
+  websokcet_exporter:
+{% if docker_hub|bool %}
+    image: blackbox-websocket-exporter:{{ docker['websocket_ver'] }}
+{% else %}
+    image: {{ docker_local }}/blackbox-websocket-exporter:{{ docker['websocket_ver'] }}
+{% endif %}
+    hostname: "{{ inventory_hostname }}"
+    container_name: websokcet_exporter
+    environment:
+      WEBSOCKET_EXPORTER_URI: ws://{{ ansible_host }}:{{ websocket_exporter['mesh_port'] | default('8080') }}/api/v2/eventbus/websocket
+      WEBSOCKET_EXPORTER_TIMEOUT: 10
+      WEBSOCKET_EXPORTER_LISTEN_ADDR: "0.0.0.0"
+      WEBSOCKET_EXPORTER_LISTEN_PORT: {{ docker['websocket_port'] | default('9802') }}
+    ports:
+      - {{ docker['websocket_port'] | default('9802') }}:9802
+    restart: always
+    labels:
+      app: "prometheus"
+      product_id: "websocketexp-prom"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "websocketexporter"
+{% endif -%}
+
+{% if 'postgres_exporter' in groups and inventory_hostname in groups['postgres_exporter'] %}
+  postgres_exporter:
+{% if docker['docker_reg_postgresexp'] == 'wrouesnel' %}
+{% if docker_hub|bool %}
+    image: {{ docker['docker_reg_postgresexp'] }}/postgres_exporter:{{ docker['postgresexporter_ver'] }}
+{% else %}
+    image: {{ docker_local }}/postgres_exporter:{{ docker['postgresexporter_ver'] }}
+{% endif %}
+    container_name: postgres_exporter
+#    network_mode: "host"
+    ports:
+      - {{ docker['postgresexp_port'] }}:9187
+    volumes:
+      - ./{{ pg_data_dir }}/queries.yaml:/opt/queries.yaml
+    environment:
+      - DATA_SOURCE_NAME={% for user_data in user_pass|zip_longest( pg_db, pg_port ) %}postgresql://{{ user_data[0] }}@{{ pg_host }}:{{ user_data[2] }}/{{ user_data[1] }}?sslmode=disable{% if not loop.last %},{% endif %}{%- endfor %}{{ ' ' }}
+      - PG_EXPORTER_EXTEND_QUERY_PATH=/opt/queries.yaml
+{% endif %}
+{% if docker['docker_reg_postgresexp'] == 'weaponry' %}
+{% if docker_hub|bool %}
+    image: {{ docker['docker_reg_postgresexp'] }}/pgscv:{{ docker['postgresexporter_ver'] }}
+{% else %}
+    image: {{ docker_local }}/pgscv:{{ docker['postgresexporter_ver'] }}
+{% endif %}
+    container_name: pgscv
+    ports:
+      - {{ docker['postgresexp_port'] }}::9890
+    environment:
+      - PGSCV_LISTEN_ADDRESS=0.0.0.0:{{ docker['postgresexp_port'] | default('9890') }}
+      - PGSCV_DISABLE_COLLECTORS=system
+      - DATABASE_DSN={% for user_data in user_pass|zip_longest( pg_db, pg_port ) %}postgresql://{{ user_data[0] }}@{{ pg_host }}:{{ user_data[2] }}/{{ user_data[1] }}?sslmode=disable{% if not loop.last %},{% endif %}{%- endfor %}{{ ' ' }}
+{% endif %}
+    labels:
+      app: "prometheus"
+      product_id: "postgresexp-prom"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "postgresexporter"
+{% endif -%}
+
+{% if 'pagespeed_exporter' in groups and inventory_hostname in groups['pagespeed_exporter'] %}
+  pagespeed_exporter:
+{% if docker_hub|bool %}
+    image: {{ docker['docker_reg_pagespeedexp'] }}/pagespeed_exporter:{{ docker['pagespeedexporter_ver'] }}
+{% else %}
+    image: {{ docker_local }}/{{ docker['docker_reg_pagespeedexp'] }}/pagespeed_exporter:{{ docker['pagespeedexporter_ver'] }}
+{% endif %}
+    container_name: pagespeed_exporter
+    restart: unless-stopped
+    ports:
+      - {{ docker['pagespeedexp_port'] }}:9271
+#    command:
+#      - "-api-key=${MY_API_KEY}"
+    labels:
+      app: "prometheus"
+      product_id: "pagespeedexp-prom"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "pagespeedexporter"
+{% endif -%}
+
+{% if 'alertmanager' in groups and inventory_hostname in groups['alertmanager'] %}
+  alertmanager:
+{% if docker_hub|bool %}
+    image: {{ docker['docker_reg_alertmngr'] }}/alertmanager:{{ docker['alertmng_ver'] }}
+{% else %}
+    image: {{ docker_local }}/{{ docker['docker_reg_alertmngr'] }}/alertmanager:{{ docker['alertmng_ver'] }}
+{% endif %}
+    hostname: "{{ inventory_hostname }}"
+    container_name: alertmanager
+    restart: unless-stopped
+    volumes:
+      - ./{{ alertmng_data_dir }}/config.yml:/etc/alertmanager/config.yml
+    command:
+      - '--config.file=/etc/alertmanager/config.yml'
+      - '--storage.path=/alertmanager'
+    ports:
+      - {{ docker['alertmngr_port'] | default('9093') }}:9093
+    labels:
+      app: "prometheus"
+      product_id: "alertmng-prom"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "alertmanager"
+{% endif -%}
+
+{% if 'alertmanagers-cluster' in groups and inventory_hostname in groups['alertmanagers-cluster'] %}
+  alertmanager:
+{% if docker_hub|bool %}
+    image: {{ docker['docker_reg_alertmngr'] }}/alertmanager:{{ docker['alertmng_ver'] }}
+{% else %}
+    image: {{ docker_local }}/{{ docker['docker_reg_alertmngr'] }}/alertmanager:{{ docker['alertmng_ver'] }}
+{% endif %}
+    hostname: "{{ inventory_hostname }}"
+    container_name: alertmanager
+    restart: unless-stopped
+    volumes:
+      - ./{{ alertmng_data_dir }}/config.yml:/etc/alertmanager/config.yml
+      - alertmanager_data:/alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/config.yml'
+      - '--storage.path=/alertmanager'
+      - '--cluster.advertise-address={{ ansible_host }}:{{ docker['alertmngr_port1'] | default('9094') }}'
+{% for host in groups['alertmanagers-cluster'] %}
+      - '--cluster.peer={{ hostvars[host]['ansible_host'] }}:{{ docker['alertmngr_port1'] | default('9094') }}'
+{% endfor %}
+      - '--cluster.listen-address=0.0.0.0:{{ docker['alertmngr_port1'] | default('9094') }}'
+      - '--cluster.probe-timeout=1s'
+      - '--cluster.probe-interval=2s'
+    ports:
+      - {{ docker['alertmngr_port'] | default('9093') }}:9093
+      - {{ docker['alertmngr_port1'] | default('9094') }}:9094
+      - {{ docker['alertmngr_port1'] | default('9094') }}:9094/udp
+    labels:
+      app: "prometheus"
+      product_id: "alertmng-prom"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "alertmanager"
+{% endif -%}
+
+{% if 'alert_bots' in groups and inventory_hostname in groups['alert_bots'] %}
+{% if receiver_webhook is defined %}
+{% for bot in receiver_webhook %}
+{% if bot == 'telegram' %}
+  prometheus-bot:
+{% if docker_hub|bool %}
+    image: {{ docker['docker_reg_telegrambot'] }}/prometheus-bot:{{ docker['telegrambot_ver'] }}
+{% else %}
+    image: {{ docker_local }}/{{ docker['docker_reg_telegrambot'] }}/prometheus-bot:{{ docker['telegrambot_ver'] }}
+{% endif %}
+    container_name: telegrambot
+    volumes:
+      - ./{{ telegrambot_data_dir }}/template.tmpl:/etc/template.tmpl
+      - ./{{ telegrambot_data_dir }}/config.yaml:/config.yaml
+    ports:
+      - {{ docker['telegrambot_port'] }}:9087
+    restart: always
+    labels:
+      app: "prometheus"
+      product_id: "telegrambot-prom"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "telegrambot"
+{% endif %}
+{% endfor %}
+{% endif %}
+{% endif -%}
+
+{% if 'karma' in groups and inventory_hostname in groups['karma'] %}
+  karma:
+{% if docker_hub|bool %}
+    image: {{ docker['docker_reg_karma'] }}/karma:{{ docker['karma_ver'] }}
+{% else %}
+    image: {{ docker_local }}/{{ docker['docker_reg_karma'] }}/karma:{{ docker['karma_ver'] }}
+{% endif %}
+    container_name: karma
+    restart: unless-stopped
+    volumes:
+      - ./{{ karma_data_dir }}/:/opt/
+    environment:
+      - CONFIG_FILE=/opt/karma.yaml
+    ports:
+      - {{ docker['karma_port'] }}:8080
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "karma"
+    labels:
+      app: "prometheus"
+      product_id: "karma-prom"
+{% endif -%}
+
+{% if 'consul' in groups and inventory_hostname in groups['consul'] and 'consul_is_ready' not in group_names %}
+  consul:
+{% if docker_hub|bool %}
+    image: consul:{{ docker['consul_ver'] }}
+{% else %}
+    image: {{ docker_local }}/consul:{{ docker['consul_ver'] }}
+{% endif %}
+    container_name: consul
+#    hostname: "{{ inventory_hostname }}"
+    restart: unless-stopped
+    volumes:
+{% if inventory_hostname in groups['consul'] and consul_server is defined and consul_server|bool %}
+      - {{ docker_path }}/consul_data:/consul/data
+      - ./{{ consul_data_dir }}/config.json:/consul/data/config.json
+{% else %}
+      - ./{{ consul_data_dir }}/config.json:/consul/data/config.json
+{% endif %}
+{% if acl_enable|bool and consul_server is defined and consul_server|bool %}
+      - ./consul/agent-policy.hcl:/tmp/agent-policy.hcl
+{% endif %}
+{% if inventory_hostname in groups['consul'] and consul_server is defined and consul_server|bool and acl_master_key is defined %}
+    environment:
+      - CONSUL_HTTP_TOKEN={{ acl_master_key }}
+{% endif %}
+    ports:
+      - '8300:8300'
+      - '8301:8301'
+      - '8301:8301/udp'
+      - '8500:8500'
+      - '8600:8600'
+      - '8600:8600/udp'
+    command:
+{% if inventory_hostname in groups['consul'] and consul_server is defined and consul_server|bool %}
+      - 'agent'
+      - '-server'
+{% else %}
+      - 'agent'
+{% endif %}
+      - '-config-file=/consul/data/config.json'
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "consul"
+    labels:
+      app: "prometheus"
+      product_id: "consul-prom"
+{% endif -%}
+
+{% if 'consul' in groups and inventory_hostname in groups['consul'] %}
+  curl:
+{% if docker_hub|bool %}
+    image: {{ docker['docker_reg_curl'] }}/consul/curl:{{ docker['curl_ver'] }}
+{% else %}
+    image: {{ docker_local }}/{{ docker['docker_reg_curl'] }}/consul/curl:{{ docker['curl_ver'] }}
+{% endif %}
+    container_name: curl
+    volumes:
+      - ./{{ consul_data_dir }}/services.json:/consul/services.json
+    environment:
+      - CONSUL_URL={{ ansible_host }}
+      - CONSUL_NODE={{ ansible_fqdn }}
+{% if acl_enable|bool and acl_agent_key is defined %}
+      - CONSUL_HTTP_TOKEN={{ acl_agent_key }}
+{% endif %}
+{% if 'consul_is_ready' not in group_names %}
+    depends_on:
+      - consul
+{% endif %}
+    labels:
+      app: "prometheus"
+      product_id: "curl-prom"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "curl"
+{% endif -%}

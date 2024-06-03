@@ -1,0 +1,27 @@
+---
+- name: "Copy rpm package to {{ install['dest_dir'] }}"
+  copy:
+    src: "{{ install['package_name'] }}"
+    dest: "{{ install['dest_dir'] }}/prometheus-nginxlog-exporter.rpm"
+    mode: '0755'
+
+- name: Install rpm package # The packages drop a configuration file to /etc/prometheus-nginxlog-exporter.hcl
+  zypper:
+    name: "{{ install['dest_dir'] }}/prometheus-nginxlog-exporter.rpm"
+    state: present
+
+- name: Make sure a service is running
+  systemd:
+    state: started
+    name: prometheus-nginxlog-exporter
+    enabled: yes
+
+- name: Deploy config file
+  template:
+    src: 'prometheus-nginxlog-exporter.hcl.j2'
+    dest: '/etc/prometheus-nginxlog-exporter.hcl'
+    mode: '0755'
+
+- name: Systemd to reread configs
+  systemd:
+    daemon_reload: yes

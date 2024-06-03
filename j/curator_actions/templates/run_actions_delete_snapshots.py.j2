@@ -1,0 +1,54 @@
+#!/usr/bin/env python
+### ANSIBLE MANAGED
+
+import os
+import docker
+{% if email['send_msg'] is defined and email['send_msg'] | default('false') %}
+import re
+import time
+import platform
+{% endif %}
+
+CURATOR_IMAGE = "{{ curator['image'] }}"
+{% if email['send_msg'] is defined and email['send_msg'] | default('false') %}
+MUTT_IMAGE = "{{ mutt['image'] }}"
+SENT_EMAIL_TO = "{{ email['send_to'] }}"
+CURATOR_HOST = platform.node()
+CURRENT_DATE = time.strftime("%Y-%m-%d")
+{% endif %}
+
+{% if curator_logrotate_log is undefined %}
+if os.path.exists("{{ opensearch_data_dir }}/curator/log/curator.log"):
+    os.remove("{{ opensearch_data_dir }}/curator/log/curator.log")
+{% endif %}
+
+docker_client = docker.from_env()
+docker_client.containers.run(CURATOR_IMAGE, remove=True, name='curator', volumes=["{{ opensearch_data_dir }}/curator/config.yml:/opt/config.yml",f"{{ opensearch_data_dir }}/curator/delete_snapshots.yml:/opt/delete_snapshots.yml","{{ opensearch_data_dir }}/curator/log:/var/log"], environment=["LC_ALL=C.UTF-8","LANG=C.UTF-8","TZ=Europe/Moscow"], command="--config /opt/config.yml /opt/delete_snapshots.yml")
+
+# ищем слова Deleting и snapshots в строках с текущей датой {CURRENT_DATE}
+deleting_snapshots = re.compile(f"{CURRENT_DATE}.*.Deleting.*.snapshots")
+snapshots_list = []
+for snap in open("{{ opensearch_data_dir }}/curator/log/curator.log"):
+   for match in re.finditer(deleting_snapshots, snap):
+       snapshot = ( ' '.join(re.findall(r'(?<=\[)[^\]]+', snap)) )
+       snapshots_list.append(snapshot)
+       snap_result = snap
+try:
+   snap_result
+   print(f"Deleted snapshots: {snapshots_list}.")
+{% if email['send_msg'] is defined and email['send_msg'] | default('false') %}
+   # отправляем письмо для адресатов {SENT_EMAIL_TO}, если есть строки за текущую дату {CURRENT_DATE} со словом *.Deleting.*.snapshots
+   with open('{{ opensearch_data_dir }}/curator/.muttrc', 'w') as s:
+       s.write(f"set from = 'curator@rshbcloud.ru'\nset realname = 'Curator opensearch'\nset ssl_starttls = no\nset use_from = yes\nset smtp_authenticators='plain'\nset ssl_force_tls = no\nset smtp_url = '{{ email['smtp_url'] }}'")
+   with open('{{ opensearch_data_dir }}/curator/mutt_snapshots_msg.txt', 'w') as f:
+       f.write(f"Curator host: {CURATOR_HOST}\nDate: {CURRENT_DATE}\nDeleted snapshots: {snapshots_list}")
+   try:
+       docker_client.containers.run(MUTT_IMAGE, remove=True, name='mutt', volumes=["{{ opensearch_data_dir }}/curator/mutt_snapshots_msg.txt:/msg.txt","{{ opensearch_data_dir }}/curator/.muttrc:/.muttrc"], environment=["TZ=Europe/Moscow"], command=f"mutt -s 'Curator: list of deleted snapshots' -F /.muttrc -i /msg.txt -- {SENT_EMAIL_TO}")
+   except docker.errors.ContainerError:
+       print(f"Something went wrong (ContainerError).")
+{% endif %}
+except NameError:
+    print(f"No snapshots for delete.")
+
+### ANSIBLE MANAGED
+

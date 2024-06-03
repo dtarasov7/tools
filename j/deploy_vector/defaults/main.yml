@@ -1,0 +1,19 @@
+---
+################## basic vars
+vector_data_dir: /opt/ans_vector_deploy
+
+################# docker-compose vars
+vector_image: timberio/vector:0.33.0-alpine
+vector_port: '8686'
+vector_port_metrics: '9598'
+vector_aggregator_port: '6000'
+vector_aggregator_port_tcp: '6002'
+vector_environment: # more parameters https://vector.dev/docs/reference/cli/#environment-variables
+    - VECTOR_CONFIG_DIR=/etc/vector
+    - VECTOR_LOG_FORMAT=json
+    - VECTOR_WATCH_CONFIG=true
+    - VECTOR_OPENSSL_LEGACY_PROVIDER=false
+vector_extra_volumes:
+   - /var/run/docker.sock:/var/run/docker.sock:ro
+#vector_extra_hosts:
+#   - host:ip

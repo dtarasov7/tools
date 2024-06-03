@@ -1,0 +1,13 @@
+#!/bin/bash
+#set -x
+curl \
+  --silent \
+  -X POST "http://localhost:9200/_snapshot/odfe-rt-test-cluster_o4n01_repository_full/202110251600/_restore?pretty" \
+  -H 'Content-Type: application/json' \
+  -d '
+  {
+  "ignore_unavailable": true,
+  "include_global_state": true,
+  "include_aliases": true
+  }
+  '

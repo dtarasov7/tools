@@ -1,0 +1,45 @@
+version: "3"
+
+services:
+  postgres:
+    image: "postgres:12.4"
+    container_name: postgres
+    hostname: $HOSTNAME
+    restart: unless-stopped
+    shm_size: 256MB
+    # Если включается pg_stat_statements то - login to the container with postgres user (-U postgres) and enable the extension with command:
+    # CREATE EXTENSION  IF NOT EXISTS pg_stat_statements;
+    # Check if good:
+    # SELECT * FROM pg_available_extensions WHERE name = 'pg_stat_statements' and installed_version is not null;
+    #
+    command:
+      - "postgres"
+      - "-c"
+      - "shared_preload_libraries=pg_stat_statements"
+      - "-c"
+      - "pg_stat_statements.track=all"
+    environment:
+      - POSTGRES_DB=test_db
+      - POSTGRES_USER=test_user
+      - POSTGRES_PASSWORD=test_passwd
+    volumes:
+      - ./data:/var/lib/postgresql/data
+      - ./log:/var/log/postgresql/
+      - ./config/pg_hba.conf:/etc/postgresql/pg_hba.conf
+      - ./backup:/var/lib/postgresql/backup
+      - ./init.db:/docker-entrypoint-initdb.d
+    command: postgres -c hba_file=/etc/postgresql/pg_hba.conf -c log_statement=all -c logging_collector=on -c log_directory=/var/log/postgresql
+    ports:
+      - 5432:5432
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "product_id,index_period"
+    labels:
+      app: "postgres"
+      product_id: "postgres"
+#      index_period: "month"
+#      filebeat.enable: "true"
+

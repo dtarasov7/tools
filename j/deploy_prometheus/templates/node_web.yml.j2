@@ -1,0 +1,2 @@
+basic_auth_users:
+  {{ nodeexporter_user }}: {{ nodeexporter_passwd | password_hash('bcrypt') }}

@@ -1,0 +1,5 @@
+{% for host in groups['cadvisor'] %}
+- targets: ['{{ hostvars[host]['ansible_host'] }}:{{ docker['cadvisor_port'] }}']
+  labels:
+    host: {{ hostvars[host]['ansible_hostname'] }}
+{% endfor %}

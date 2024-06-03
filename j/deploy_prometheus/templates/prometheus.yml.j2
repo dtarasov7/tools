@@ -1,0 +1,284 @@
+global:
+  scrape_interval:     15s
+  scrape_timeout:      15s
+  evaluation_interval: 15s
+
+  # Attach these labels to any time series or alerts when communicating with
+  # external systems (federation, remote storage, Alertmanager).
+#  external_labels:
+#      monitor: 'docker-host-alpha'
+
+# Load and evaluate rules in this file every 'evaluation_interval' seconds.
+rule_files:
+  - "alert.rules"
+
+{% if job_name['victoriametrics']|bool %}
+# Settings related to the remote write feature.
+remote_write:
+{% for host in groups['victoria_metrics'] %}
+  - url: "http://{{ hostvars[host]['ansible_host'] }}:{{ docker['victoriametrics_port'] }}/api/v1/write"
+    basic_auth:
+      username: '{{ victoriametrics_user }}'
+      password: '{{ victoriametrics_passwd }}'
+{% endfor %}
+{% endif -%}
+
+# A scrape configuration containing exactly one endpoint to scrape.
+scrape_configs:
+
+{% if job_name['prometheus']|bool %}
+  - job_name: 'prometheus'
+    scrape_interval: {{ prometheus['scrape_interval'] }}
+    basic_auth:
+      username: '{{ prom['user'] }}'
+      password: '{{ prom['passwd'] }}'
+    static_configs:
+{% for host in groups['prometheus'] %}
+      - targets: ['{{ hostvars[host]['ansible_host'] }}:{{ nginx['prom_port'] }}']
+        labels:
+          host: {{ hostvars[host]['ansible_hostname'] }}
+{% endfor %}
+{% endif -%}
+
+{% if job_name['nodeexporter']|bool %}
+  - job_name: 'nodeexporter'
+    scrape_interval: {{ nodeexporter['scrape_interval'] }}
+    file_sd_configs:
+      - files:
+        - '/etc/prometheus/nodeexporter.yml'
+{% endif -%}
+
+{% if job_name['grafana_metrics']|bool %}
+  - job_name: 'grafana_metrics'
+    scrape_interval: {{ grafana['scrape_interval'] }}
+    scrape_timeout: {{ grafana['scrape_timeout'] }}
+    static_configs:
+{% for host in groups['grafana'] %}
+      - targets: ['{{ hostvars[host]['ansible_host'] }}:{{ docker['gf_port'] }}']
+        labels:
+          host: {{ hostvars[host]['ansible_hostname'] }}
+{% endfor %}
+{% endif -%}
+
+{{% if job_name['spring_micrometer']|bool %}
+  - job_name: 'spring_micrometer'
+    scrape_interval: {{ spring_micrometer['scrape_interval'] }}
+    metrics_path: {{ spring_micrometer['metrics_path'] }}
+    scrape_timeout: {{ spring_micrometer['scrape_timeout'] }}
+    file_sd_configs:
+      - files:
+        - '/etc/prometheus/spring_micrometer.yml'
+{% endif -%}
+
+{% if job_name['spring_micrometer_basic_auth']|bool %}
+  - job_name: 'spring_micrometer_basic_auth'
+    scrape_interval: {{ spring_micrometer_basic_auth['scrape_interval'] }}
+    metrics_path: {{ spring_micrometer_basic_auth['metrics_path'] }}
+    scrape_timeout: {{ spring_micrometer_basic_auth['scrape_timeout'] }}
+    file_sd_configs:
+      - files:
+        - '/etc/prometheus/spring_micrometer_basic_auth.yml'
+    basic_auth:
+      username: '{{ spring_micrometer_basic_auth_user }}'
+      password: '{{ spring_micrometer_basic_auth_pass}}'
+{% endif -%}
+
+{% if job_name['cadvisor']|bool %}
+  - job_name: 'cadvisor'
+    scrape_interval: {{ cadvisor['scrape_interval'] }}
+    file_sd_configs:
+      - files:
+        - '/etc/prometheus/cadvisor.yml'
+{% endif -%}
+
+{% if job_name['elasticsearch']|bool %}
+  - job_name: 'elasticsearch'
+    scrape_interval: {{ elasticsearch['scrape_interval'] }}
+    static_configs:
+{% for host in groups['elastic'] %}
+      - targets: ['{{ hostvars[host]['ansible_host'] }}:{{ docker['elexp_port'] }}']
+        labels:
+          host: {{ hostvars[host]['ansible_hostname'] }}
+{% endfor %}
+{% endif -%}
+
+{% if job_name['nginxlogexporter']|bool %}
+  - job_name: 'nginxlog'
+    scrape_interval: {{ nginxlogexporter['scrape_interval'] }}
+    static_configs:
+{% for host in groups['nginxlog'] %}
+      - targets: ['{{ hostvars[host]['ansible_host'] }}:{{ docker['nginxlog_port'] }}']
+        labels:
+          host: {{ hostvars[host]['ansible_hostname'] }}
+{% endfor %}
+{% endif -%}
+
+{% if job_name['pushgateway']|bool %}
+  - job_name: 'pushgateway'
+    scrape_interval: {{ pushgateway['scrape_interval'] }}
+    honor_labels: {{ pushgateway['honor_labels'] }}
+    static_configs:
+{% for host in groups['pushgateway'] %}
+      - targets: ['{{ hostvars[host]['ansible_host'] }}:{{ docker['pushgw_port'] }}']
+        labels:
+          host: {{ hostvars[host]['ansible_hostname'] }}
+{% endfor %}
+{% endif -%}
+
+{% if job_name['bb_http2xx']|bool%}
+  - job_name: 'blackbox-http_2xx'
+    scrape_interval: {{ http_2xx['scrape_interval'] }}
+    metrics_path: {{ http_2xx['metrics_path'] }}
+    params:
+      module: [http_2xx]
+    file_sd_configs:
+      - files:
+        - '/etc/prometheus/http_2xx.yml'
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: {{ hostvars[groups['blackbox'][0]]['ansible_host'] }}:{{ hostvars[groups['blackbox'][0]]['bb_port'] }}
+{% endif -%}
+
+{% if job_name['bb_https2xx']|bool %}
+  - job_name: 'blackbox-https_2xx'
+    scrape_interval: {{ https_2xx['scrape_interval'] }}
+    metrics_path: {{ https_2xx['metrics_path'] }}
+    params:
+      module: [https_2xx]
+    file_sd_configs:
+      - files:
+        - '/etc/prometheus/https_2xx.yml'
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: {{ hostvars[groups['blackbox'][0]]['ansible_host'] }}:{{ hostvars[groups['blackbox'][0]]['bb_port'] }}
+{% endif -%}
+
+{% if job_name['bb_http401']|bool%}
+  - job_name: 'blackbox-http_401'
+    scrape_interval: {{ http_401['scrape_interval'] }}
+    metrics_path: {{ http_401['metrics_path'] }}
+    params:
+      module: [http_401]
+    file_sd_configs:
+      - files:
+        - '/etc/prometheus/http_401.yml'
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: {{ hostvars[groups['blackbox'][0]]['ansible_host'] }}:{{ hostvars[groups['blackbox'][0]]['bb_port'] }}
+{% endif -%}
+
+{% if job_name['bb_http302']|bool%}
+  - job_name: 'blackbox-http_302'
+    scrape_interval: {{ http_302['scrape_interval'] }}
+    metrics_path: {{ http_302['metrics_path'] }}
+    params:
+      module: [http_302]
+    file_sd_configs:
+      - files:
+        - '/etc/prometheus/http_302.yml'
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: {{ hostvars[groups['blackbox'][0]]['ansible_host'] }}:{{ hostvars[groups['blackbox'][0]]['bb_port'] }}
+{% endif -%}
+
+{% if job_name['kafkaexporter']|bool %}
+  - job_name: 'kafka-exporter'
+    scrape_interval: {{ kafkaexporter['scrape_interval'] }}
+    static_configs:
+{% for host in groups['kafka'] %}
+      - targets: ['{{ hostvars[host]['ansible_host'] }}:{{ docker['kafkaexp_port'] }}']
+        labels:
+          host: {{ hostvars[host]['ansible_hostname'] }}
+{% endfor %}
+{% endif -%}
+
+{% if job_name['redisexporter']|bool %}
+  - job_name: 'redis-exporter'
+    scrape_interval: {{ redisexporter['scrape_interval'] }}
+    static_configs:
+{% for host in groups['redis'] %}
+      - targets: ['{{ hostvars[host]['ansible_host'] }}:{{ docker['redisexp_port'] }}']
+        labels:
+          host: {{ hostvars[host]['ansible_hostname'] }}
+{% endfor %}
+{% endif -%}
+
+{% if job_name['postgresexporter']|bool %}
+  - job_name: 'postgres-exporter'
+    scrape_interval: {{ postgresexporter['scrape_interval'] }}
+    static_configs:
+{% for host in groups['postgres'] %}
+      - targets: ['{{ hostvars[host]['ansible_host'] }}:{{ docker['postgresexp_port'] }}']
+        labels:
+          host: {{ hostvars[host]['ansible_hostname'] }}
+{% endfor %}
+{% endif -%}
+
+{% if job_name['victoriametrics']|bool %}
+  - job_name: 'victoria_metrics'
+    honor_timestamps: {{ victoriametrics['honor_timestamps'] }}
+    scrape_interval: {{ victoriametrics['scrape_interval'] }}
+    scrape_timeout: {{ victoriametrics['scrape_timeout'] }}
+    scheme: {{ victoriametrics['scheme'] }}
+    basic_auth:
+      username: '{{ nginx_user }}'
+      password: '{{ nginx_passwd }}'
+    static_configs:
+{% for host in groups['victoria_metrics'] %}
+      - targets: ['{{ hostvars[host]['ansible_host'] }}:{{ nginx['victoriametrics_port'] }}']
+        labels:
+          host: {{ hostvars[host]['ansible_hostname'] }}
+{% endfor %}
+{% endif -%}
+
+{% if job_name['logstashexporter']|bool %}
+  - job_name: 'logstash-exporter'
+    scrape_interval: {{ logstashexporter['scrape_interval'] }}
+    metrics_path: {{ logstashexporter['metrics_path'] }}
+    static_configs:
+{% for host in groups['logstashexporter'] %}
+      - targets: ['{{ hostvars[host]['ansible_host'] }}:{{ docker['logstashexp_port'] }}']
+        labels:
+          host: {{ hostvars[host]['ansible_hostname'] }}
+{% endfor %}
+{% endif -%}
+
+{% if job_name['beatexporter']|bool %}
+  - job_name: 'beat-exporter'
+    scrape_interval: {{ beatexporte['scrape_interval'] }}
+    metrics_path: {{ beatexporte['metrics_path'] }}
+    static_configs:
+{% for host in groups['beatexporter'] %}
+      - targets: ['{{ hostvars[host]['ansible_host'] }}:{{ docker['beatexporter_port'] }}']
+        labels:
+          host: {{ hostvars[host]['ansible_hostname'] }}
+{% endfor %}
+{% endif -%}
+
+{% if job_name['alertmanager']|bool %}
+alerting:
+  alertmanagers:
+  - scheme: {{ alertmanager['scheme'] }}
+    static_configs:
+{% for host in groups['alertmanager'] %}
+      - targets: ['{{ hostvars[host]['ansible_host'] }}:{{ docker['alertmngr_port'] }}']
+        labels:
+          host: {{ hostvars[host]['ansible_hostname'] }}
+{% endfor %}
+{% endif %}

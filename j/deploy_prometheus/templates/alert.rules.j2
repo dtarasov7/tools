@@ -1,0 +1,415 @@
+groups:
+{% if 'consul' in groups or 'consul_is_ready' in groups %}
+- name: consul
+  rules:
+  - alert: ConsulLeaderIsChanged
+    expr: changes(consul_raft_state_leader[1m]) > 0
+    for: 1m
+    labels:
+      severity: info
+    annotations:
+      summary: "Consul leader is changed {% raw %}{{ $labels.instance }}{% endraw %}"
+      description: "Consul leader is changed\n  VALUE = {% raw %}{{ $value }}{% endraw %}\n  LABELS: {% raw %}{{ $labels }}{% endraw %}"
+{% endif %}
+
+{% if 'node_exporter' in groups %}
+- name: hardware
+  rules:
+  - alert: HighMemoryLoad
+    expr: (sum(node_memory_MemTotal_bytes) - sum(node_memory_MemFree_bytes + node_memory_Buffers_bytes + node_memory_Cached_bytes) ) / sum(node_memory_MemTotal_bytes) *100 > 90
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "High Memory Load {% raw %}{{ $labels.instance }}{% endraw %}"
+      description: "Memory of a host {% raw %}{{ $labels.instance }}{% endraw %} is almost full"
+
+  - alert: HostOutOfMemoryLeft10pct
+    expr: node_memory_MemAvailable_bytes{job="nodeexporter"} / node_memory_MemTotal_bytes{job="nodeexporter"} * 100 < 10
+    for: 5m
+    labels:
+      severity: fatal
+{% if receiver_webhook is defined and receiver_webhook|length %}
+      alert_route_to_bot: {% for bot in receiver_webhook %}{% if bot == 'telegram' %}telegramFatal{% endif %}{% if bot == 'whatsapp' %}, whatsappFatal{% endif %}{% endfor %}{{ ' ' }}
+{% endif %}
+    annotations:
+      firing_msg: "Host {% raw %}{{ $labels.host }}{% endraw %} out of memory (< 10% left)."
+      resolved_msg: "The problem on host {% raw %}{{ $labels.host }}{% endraw %} with out of memory (< 10% left) was resolved."
+
+  - alert: HostHighCpuLoad
+    expr: 100 - (avg by (instance) (irate(node_cpu_seconds_total{job="nodeexporter",mode="idle"}[5m])) * 100) > 70
+    for: 20m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Host high CPU load {% raw %}{{ $labels.instance }}{% endraw %}"
+      description: "High CPU utilisation detected for instance {% raw %}{{ $labels.instance }}{% endraw %}, the utilisation is currently {% raw %}{{ $value }}{% endraw %}%"
+
+  - alert: HostOutOfDiskSpaceMountpointRootLeft30pct
+    expr: node_filesystem_free_bytes{mountpoint="/",job="nodeexporter"} / node_filesystem_size_bytes{job="nodeexporter"} * 100 < 30
+    for: 1m
+    labels:
+      severity: info
+    annotations:
+      summary: "Host out of disk space {% raw %}{{ $labels.instance }}{% endraw %}"
+      description: "Disk is almost full (< 30% left)\n Datacenter: {% raw %}{{ $labels.datacenter }}{% endraw %}\n Instance: {% raw %}{{ $labels.instance }}{% endraw %}\n Mountpoint: {% raw %}{{ $labels.mountpoint }}{% endraw %}\n VALUE = {% raw %}{{ printf \"node_filesystem_avail_bytes{mountpoint='%s'}\" .Labels.mountpoint | query | first | value | humanize1024 }}{% endraw %}"
+
+  - alert: HostOutOfDiskSpaceMountpointRootLeft10pct
+    expr: node_filesystem_free_bytes{mountpoint="/",job="nodeexporter"} / node_filesystem_size_bytes{job="nodeexporter"} * 100 < 10
+    for: 1m
+    labels:
+      severity: fatal
+{% if receiver_webhook is defined and receiver_webhook|length %}
+      alert_route_to_bot: {% for bot in receiver_webhook %}{% if bot == 'telegram' %}telegramFatal{% endif %}{% if bot == 'whatsapp' %}, whatsappFatal{% endif %}{% endfor %}{{ ' ' }}
+{% endif %}
+    annotations:
+      firing_msg: "Host {% raw %}{{ $labels.host }}{% endraw %} out of disk space (< 10% left)."
+      resolved_msg: "The problem on host {% raw %}{{ $labels.host }}{% endraw %} with out of disk space (< 10% left) was resolved."
+
+  - alert: PreditciveHostDiskSpaceMountpointRoot
+    expr: predict_linear(node_filesystem_free{mountpoint="/"}[4h], 4 * 3600) < 0
+    for: 30m
+    labels:
+      severity: info
+    annotations:
+      summary: "Predictive Disk Space Utilisation Alert"
+      description: "Based on recent sampling, the disk is likely to will fill on volume {% raw %}{{ $labels.mountpoint }}{% endraw %} within the next 4 hours for instace: {% raw %}{{ $labels.instance}}{% endraw %}"
+
+  - alert: PreditciveHostMemAvailable
+    expr: predict_linear(node_memory_MemAvailable_bytes[2h], 1 * 3600) <= 0
+    for: 30m
+    labels:
+      severity: info
+    annotations:
+      summary: "Predictive Memory Available Alert"
+      description: "Based on recent sampling, the memory is likely to will fill within the next 1 hour for instance: {% raw %}{{ $labels.instance }}{% endraw %}"
+
+  - alert: InstanceDown
+    expr: up{job!~"spring_micrometer|springmicrometer_basic_auth"} == 0
+    for: 5m
+    labels:
+      severity: fatal
+{% if receiver_webhook is defined and receiver_webhook|length %}
+      alert_route_to_bot: {% for bot in receiver_webhook %}{% if bot == 'telegram' %}telegramFatal{% endif %}{% if bot == 'whatsapp' %}, whatsappFatal{% endif %}{% endfor %}{{ ' ' }}
+{% endif %}
+    annotations:
+      firing_msg: "Instance {% raw %}{{ $labels.host }}{% endraw %} of job {% raw %}{{ $labels.job }}{% endraw %} has been DOWN."
+      resolved_msg: "Instance {% raw %}{{ $labels.host }}{% endraw %} of job {% raw %}{{ $labels.job }}{% endraw %} has been UP."
+
+{% if 'springmicrometer' in groups or 'springmicrometer_basic_auth' in groups %}
+  - alert: ApplicationDown
+    expr: up{job=~"spring_micrometer|springmicrometer_basic_auth"} == 0
+    for: 5m
+    labels:
+      severity: fatal
+{% if receiver_webhook is defined and receiver_webhook|length %}
+      alert_route_to_bot: {% for bot in receiver_webhook %}{% if bot == 'telegram' %}telegramFatal{% endif %}{% if bot == 'whatsapp' %}, whatsappFatal{% endif %}{% endfor %}{{ ' ' }}
+{% endif %}
+    annotations:
+      firing_msg: "Application  \"{% raw %}{{ $labels.application }}{% endraw %}\" on host {% raw %}{{ $labels.host }}{% endraw %} has been DOWN."
+      resolved_msg: "Application  \"{% raw %}{{ $labels.application }}{% endraw %}\" on host {% raw %}{{ $labels.host }}{% endraw %} has been UP."
+{% endif %}
+{% endif %}
+
+{% if 'prometheus' in groups %}
+- name: prometheusConfigurations
+  rules:
+  - alert: PrometheusTooManyRestarts
+    expr: changes(process_start_time_seconds{job=~"prometheus|pushgateway|alertmanager"}[15m]) > 2
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Prometheus too many restarts (instance {% raw %}{{ $labels.instance }}{% endraw %})"
+      description: "Prometheus has restarted more than twice in the last 15 minutes. It might be crashlooping.\n  VALUE = {% raw %}{{ $value }}{% endraw %}\n  LABELS: {% raw %}{{ $labels }}{% endraw %}"
+
+  - alert: PrometheusAlertmanagerConfigurationReloadFailure
+    expr: alertmanager_config_last_reload_successful != 1
+    for: 5m
+    labels:
+      severity: info
+    annotations:
+      summary: "Prometheus AlertManager configuration reload failure (instance {% raw %}{{ $labels.instance }}{% endraw %})"
+      description: "AlertManager configuration reload error\n  VALUE = {% raw %}{{ $value }}{% endraw %}\n  LABELS: {% raw %}{{ $labels }}{% endraw %}"
+
+  - alert: PrometheusAlertmanagerConfigNotSynced
+    expr: count(count_values("config_hash", alertmanager_config_hash)) > 1
+    for: 5m
+    labels:
+      severity: info
+    annotations:
+      summary: "Prometheus AlertManager config not synced (instance {% raw %}{{ $labels.instance }}{% endraw %})"
+      description: "Configurations of AlertManager cluster instances are out of sync\n  VALUE = {% raw %}{{ $value }}{% endraw %}\n  LABELS: {% raw %}{{ $labels }}{% endraw %}"
+
+  - alert: PrometheusNotConnectedToAlertmanager
+    expr: prometheus_notifications_alertmanagers_discovered < 1
+    for: 5m
+    labels:
+      severity: critical
+{% if receiver_webhook is defined and receiver_webhook|length %}
+      alert_route_to_bot: {% for bot in receiver_webhook %}{% if bot == 'telegram' %}telegramCritical{% endif %}{% if bot == 'whatsapp' %}, whatsappCritical{% endif %}{% endfor %}{{ ' ' }}
+{% endif %}
+    annotations:
+      firing_msg: "Prometheus not connected to alertmanager (instance {% raw %}{{ $labels.host }}{% endraw %})."
+      resolved_msg: "The problem with Prometheus connection to alertmanager (instance {% raw %}{{ $labels.host }}{% endraw %}) was resolved."
+
+  - alert: PrometheusRuleEvaluationFailures
+    expr: increase(prometheus_rule_evaluation_failures_total[3m]) > 0
+    for: 5m
+    labels:
+      severity: info
+    annotations:
+      summary: "Prometheus rule evaluation failures (instance {% raw %}{{ $labels.instance }}{% endraw %})"
+      description: "Prometheus encountered {% raw %}{{ $value }}{% endraw %} rule evaluation failures, leading to potentially ignored alerts.\n  VALUE = {% raw %}{{ $value }}{% endraw %}\n  LABELS: {% raw %}{{ $labels }}{% endraw %}"
+
+  - alert: PrometheusNotificationsBacklog
+    expr: min_over_time(prometheus_notifications_queue_length[10m]) > 0
+    for: 5m
+    labels:
+      severity: info
+    annotations:
+      summary: "Prometheus notifications backlog (instance {% raw %}{{ $labels.instance }}{% endraw %})"
+      description: "The Prometheus notification queue has not been empty for 10 minutes\n  VALUE = {% raw %}{{ $value }}{% endraw %}\n  LABELS: {% raw %}{{ $labels }}{% endraw %}"
+
+  - alert: PrometheusAlertmanagerNotificationFailing
+    expr: rate(alertmanager_notifications_failed_total[1m]) > 0
+    for: 5m
+    labels:
+      severity: info
+    annotations:
+      summary: "Prometheus AlertManager notification failing (instance {% raw %}{{ $labels.instance }}{% endraw %})"
+      description: "Alertmanager is failing sending notifications\n  VALUE = {% raw %}{{ $value }}{% endraw %}\n  LABELS: {% raw %}{{ $labels }}{% endraw %}"
+
+- name: targets
+  rules:
+  - alert: PrometheusTargetEmpty
+    expr: prometheus_sd_discovered_targets == 0
+    for: 5m
+    labels:
+      severity: critical
+{% if receiver_webhook is defined and receiver_webhook|length %}
+      alert_route_to_bot: {% for bot in receiver_webhook %}{% if bot == 'telegram' %}telegramCritical{% endif %}{% if bot == 'whatsapp' %}, whatsappCritical{% endif %}{% endfor %}{{ ' ' }}
+{% endif %}
+    annotations:
+      firing_msg: "Prometheus target empty (instance {% raw %}{{ $labels.host }}{% endraw %})."
+      resolved_msg: "The problem with empty Prometheus target (instance {% raw %}{{ $labels.host }}{% endraw %}) was resolved."
+{% endif %}
+
+{% if 'elasticsearch_exporter' in groups %}
+- name: elasticsearch
+  rules:
+  - alert: ElasticUP
+    expr: elasticsearch_cluster_health_up != 1
+    for: 120s
+    labels:
+      severity: fatal
+{% if receiver_webhook is defined and receiver_webhook|length %}
+      alert_route_to_bot: {% for bot in receiver_webhook %}{% if bot == 'telegram' %}telegramFatal{% endif %}{% if bot == 'whatsapp' %}, whatsappFatal{% endif %}{% endfor %}{{ ' ' }}
+{% endif %}
+    annotations:
+      firing_msg: "Instance {% raw %}{{ $labels.host }}{% endraw %}: Elasticsearch instance status is not 1."
+      resolved_msg: "Instance {% raw %}{{ $labels.host }}{% endraw %}: Elasticsearch instance status is 1 now."
+
+  - alert: ElasticClusterHealthRED
+    expr: elasticsearch_cluster_health_status{color="red"} == 1
+    for: 300s
+    labels:
+      severity: critical
+{% if receiver_webhook is defined and receiver_webhook|length %}
+      alert_route_to_bot: {% for bot in receiver_webhook %}{% if bot == 'telegram' %}telegramCritical{% endif %}{% if bot == 'whatsapp' %}, whatsappCritical{% endif %}{% endfor %}{{ ' ' }}
+{% endif %}
+    annotations:
+      firing_msg: "Instance {% raw %}{{ $labels.host }}{% endraw %}: not all primary and replica shards are allocated in elasticsearch cluster {% raw %}{{ $labels.cluster }}{% endraw %}."
+      resolved_msg: "Instance {% raw %}{{ $labels.host }}{% endraw %}: the problem with primary and replica shards was resolved in elasticsearch cluster {% raw %}{{ $labels.cluster }}{% endraw %}."
+
+  - alert: ElasticClusterHealthYellow
+    expr: elasticsearch_cluster_health_status{color="yellow"} == 1
+    for: 300s
+    labels:
+      severity: warning
+    annotations:
+      summary: "Instance {% raw %}{{ $labels.instance }}{% endraw %}: not all primary and replica shards are allocated in elasticsearch cluster {% raw %}{{ $labels.cluster }}{% endraw %}"
+      description: "Instance {% raw %}{{ $labels.instance }}{% endraw %}: not all primary and replica shards are allocated in elasticsearch cluster {% raw %}{{ $labels.cluster }}{% endraw %}"
+
+  - alert: ElasticsearchJVMHeapTooHigh
+    expr: elasticsearch_jvm_memory_used_bytes{area="heap"} / elasticsearch_jvm_memory_max_bytes{area="heap"} > 0.8
+    for: 15m
+    labels:
+      severity: info
+    annotations:
+      summary: "ElasticSearch node {% raw %}{{ $labels.instance }}{% endraw %} heap usage is high"
+      description: "The heap in {% raw %}{{ $labels.instance }}{% endraw %} is over 80% for 15m"
+
+  - alert: ElasticsearchHealthUp
+    expr: elasticsearch_cluster_health_up != 1
+    for: 1m
+    labels:
+      severity: info
+    annotations:
+      summary: "ElasticSearch node: {% raw %}{{ $labels.instance }}{% endraw %} last scrape of the ElasticSearch cluster health failed"
+      description: "ElasticSearch node: {% raw %}{{ $labels.instance }}{% endraw %} last scrape of the ElasticSearch cluster health failed"
+
+  - alert: ElasticsearchTooFewNodesRunning
+    expr: elasticsearch_cluster_health_number_of_nodes < 3
+    for: 5m
+    labels:
+      severity: critical
+{% if receiver_webhook is defined and receiver_webhook|length %}
+      alert_route_to_bot: {% for bot in receiver_webhook %}{% if bot == 'telegram' %}telegramCritical{% endif %}{% if bot == 'whatsapp' %}, whatsappCritical{% endif %}{% endfor %}{{ ' ' }}
+{% endif %}
+    annotations:
+      firing_msg: "ElasticSearch running on less than 3 nodes in cluster {% raw %}{{ $labels.cluster }}{% endraw %}."
+      resolved_msg: "ElasticSearch again running on 3 nodes in cluster {% raw %}{{ $labels.cluster }}{% endraw %}."
+
+  - alert: Elasticsearch_Count_of_JVM_GC_Runs
+    expr: rate(elasticsearch_jvm_gc_collection_seconds_count{}[5m]) > 5
+    for: 60s
+    labels:
+      severity: info
+    annotations:
+      summary: "ElasticSearch node {% raw %}{{ $labels.instance }}{% endraw %}: Count of JVM GC runs > 5 per sec and has a value of {% raw %}{{ $value }}{% endraw %}"
+
+  - alert: ElasticsearchGCRunTime
+    expr: rate(elasticsearch_jvm_gc_collection_seconds_sum[5m]) > 0.3
+    for: 60s
+    labels:
+      severity: info
+    annotations:
+      summary: "ElasticSearch node {% raw %}{{ $labels.instance }}{% endraw %}: GC run time in seconds > 0.3 sec and has a value of {% raw %}{{ $value }}{% endraw %}"
+      description: "ElasticSearch node {% raw %}{{ $labels.instance }}{% endraw %}: GC run time in seconds > 0.3 sec and has a value of {% raw %}{{ $value }}{% endraw %}"
+
+  - alert: ElasticsearchJsonParseFailures
+    expr: elasticsearch_cluster_health_json_parse_failures>0
+    for: 60s
+    labels:
+      severity: warning
+    annotations:
+      summary: "ElasticSearch node {% raw %}{{ $labels.instance }}{% endraw %}: json parse failures > 0 and has a value of {% raw %}{{ $value }}{% endraw %}"
+      description: "ElasticSearch node {% raw %}{{ $labels.instance }}{% endraw %}: json parse failures > 0 and has a value of {% raw %}{{ $value }}{% endraw %}"
+
+  - alert: ElasticsearchBreakersTripped
+    expr: rate(elasticsearch_breakers_tripped{}[5m]) > 0
+    for: 60s
+    labels:
+      severity: info
+    annotations:
+      summary: "ElasticSearch node {% raw %}{{ $labels.instance }}{% endraw %}: breakers tripped > 0 and has a value of {% raw %}{{ $value }}{% endraw %}"
+      description: "ElasticSearch node {% raw %}{{ $labels.instance }}{% endraw %}: breakers tripped > 0 and has a value of {% raw %}{{ $value }}{% endraw %}"
+
+  - alert: ElasticsearchHealthTimedOut
+    expr: rate(elasticsearch_breakers_tripped{}[5m]) > 0
+    for: 60s
+    labels:
+      severity: critical
+{% if receiver_webhook is defined and receiver_webhook|length %}
+      alert_route_to_bot: {% for bot in receiver_webhook %}{% if bot == 'telegram' %}telegramCritical{% endif %}{% if bot == 'whatsapp' %}, whatsappCritical{% endif %}{% endfor %}{{ ' ' }}
+{% endif %}
+    annotations:
+      firing_msg: "ElasticSearch node {% raw %}{{ $labels.host }}{% endraw %}: Number of cluster health checks timed out > 0 and has a value of {% raw %}{{ $value }}{% endraw %}."
+      resolved_msg: "ElasticSearch node {% raw %}{{ $labels.host }}{% endraw %}: The problem  with health checks was resolved and has a value of {% raw %}{{ $value }}{% endraw %}."
+{% endif -%}
+
+{% if 'nginxlog' in group_names %}
+- name: nginxlog
+  rules:
+  - alert: NginxlogParseError
+    expr: nginx_parse_errors_total > 0
+    for: 60s
+    labels:
+      severity: warning
+    annotations:
+      summary: "Warning: NginxLog parse errors on the instance: {% raw %}{{ $labels.instance }}{% endraw %}, log: {% raw %}{{ $labels.vhost }}{% endraw %}"
+      description: "NginxLog parse errors are {% raw %}{{ $value }}{% endraw %}"
+{% endif -%}
+
+{% if 'kafka_exporter' in groups %}
+- name: kafka
+  rules:
+  - alert: KafkaNumberBroker
+    expr: kafka_brokers{job="kafka-exporter"} == 0
+    for: 60s
+    labels:
+      severity: fatal
+{% if receiver_webhook is defined and receiver_webhook|length %}
+      alert_route_to_bot: {% for bot in receiver_webhook %}{% if bot == 'telegram' %}telegramFatal{% endif %}{% if bot == 'whatsapp' %}, whatsappFatal{% endif %}{% endfor %}{{ ' ' }}
+{% endif %}      
+    annotations:
+      firing_msg: "Kafka number available broker too many(=0) on the instance {% raw %}{{ $labels.host }}{% endraw %}. Kafka number brokers are {% raw %}{{ $value }}{% endraw %}."
+      resolved_msg: "Kafka number available broker was restored on the instance {% raw %}{{ $labels.host }}{% endraw %}. Kafka number brokers are {% raw %}{{ $value }}{% endraw %} now."
+
+  - alert: kafka_number_orders1
+    expr: rate(kafka_topic_partition_current_offset{job="kafka-exporter",topic="topicname1"}[1m]) == 0
+    for: 60s
+    labels:
+      severity: warning
+    annotations:
+      summary: "Kafka number orders1 too small(=0) on the instance {% raw %}{{ $labels.instance }}{% endraw %} for more than 1 minutes"
+      description: "Kafka number orders1 are {% raw %}{{ $value }}{% endraw %}"
+
+  - alert: kafka_number_orders2
+    expr: rate(kafka_topic_partition_current_offset{job="kafka-exporter",topic="topicname2"}[1m]) == 0
+    for: 60s
+    labels:
+      severity: warning
+    annotations:
+      summary: "Kafka number orders2 too small(=0) on the instance {% raw %}{{ $labels.instance }}{% endraw %} for more than 1 minutes"
+      description: "Kafka number orders2 are {% raw %}{{ $value }}{% endraw %}"
+
+  - alert: KafkaTopicPartitionUnderReplicatedPartition
+    expr: kafka_topic_partition_under_replicated_partition{job="kafka-exporter"} > 0
+    for: 60s
+    labels:
+      severity: fatal
+{% if receiver_webhook is defined and receiver_webhook|length %}
+      alert_route_to_bot: {% for bot in receiver_webhook %}{% if bot == 'telegram' %}telegramFatal{% endif %}{% if bot == 'whatsapp' %}, whatsappFatal{% endif %}{% endfor %}{{ ' ' }}
+{% endif %}
+    annotations:
+      firing_msg: "Kafka topic partition under replicated partition(>0) on the instance {% raw %}{{ $labels.host }}{% endraw %}. Kafka topic partition under replicated partition are {% raw %}{{ $value }}{% endraw %}."
+      resolved_msg: "The problem with topic partition under replicated partition on the instance {% raw %}{{ $labels.host }}{% endraw %} was resolved. Kafka topic partition under replicated partition are {% raw %}{{ $value }}{% endraw %} now."
+{% endif %}
+
+{% if 'blackbox' in groups %}
+- name: blackbox
+  rules:
+  - alert: BlackboxSslCertificateWillExpireSoon
+    expr: probe_ssl_earliest_cert_expiry - time() < 86400 * 14
+    for: 0m
+    labels:
+      severity: critical
+{% if receiver_webhook is defined and receiver_webhook|length %}
+      alert_route_to_bot: {% for bot in receiver_webhook %}{% if bot == 'telegram' %}telegramCritical{% endif %}{% if bot == 'whatsapp' %}, whatsappCritical{% endif %}{% endfor %}{{ ' ' }}
+{% endif %}
+    annotations:
+      firing_msg: "Blackbox SSL certificate expires in 14 days on host {% raw %}{{ $labels.host }}{% endraw %}."
+      resolved_msg: "New SSL certificate issued for host {% raw %}{{ $labels.host }}{% endraw %}."
+
+  - alert: BlackboxSslCertificateExpired
+    expr: probe_ssl_earliest_cert_expiry - time() <= 0
+    for: 0m
+    labels:
+      severity: fatal
+{% if receiver_webhook is defined and receiver_webhook|length %}
+      alert_route_to_bot: {% for bot in receiver_webhook %}{% if bot == 'telegram' %}telegramFatal{% endif %}{% if bot == 'whatsapp' %}, whatsappFatal{% endif %}{% endfor %}{{ ' ' }}
+{% endif %}
+    annotations:
+      firing_msg: "SSL certificate has expired already on host {% raw %}{{ $labels.host }}{% endraw %}."
+      resolved_msg: "New SSL certificate issued for host {% raw %}{{ $labels.host }}{% endraw %}."
+      
+  - alert: BlackboxProbeFailed
+    expr: probe_success == 0
+    for: 2m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Blackbox probe failed (instance {% raw %}{{ $labels.target }}{% endraw %})"
+      description: "The HTTP(S) service at {% raw %}{{ $labels.instance }}{% endraw %} has been failing for more than 2 minutes"
+
+  - alert: BlackboxProbeHttp404Failure
+    expr: probe_http_status_code == 404
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Blackbox probe HTTP 404 failure (instance {% raw %}{{ $labels.target }}{% endraw %})"
+      description: "HTTP status code is 404\n  VALUE = {% raw %}{{ $value }}{% endraw %}"
+{% endif %}

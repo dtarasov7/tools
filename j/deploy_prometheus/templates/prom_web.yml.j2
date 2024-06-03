@@ -1,0 +1,6 @@
+# Usernames and hashed passwords that have full access to the web
+# server via basic authentication. If empty, no basic authentication is
+# required. Passwords are hashed with bcrypt.
+basic_auth_users:
+  {{ prom_user }}: {{ prom_passwd | password_hash('bcrypt') }}
+  admin_cos: $2a$12$Td1nneEcz89.vEbn.ix9uu0Ds80j7FyXysc31qVjyx9c2hK5cO.di

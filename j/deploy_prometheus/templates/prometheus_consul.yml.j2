@@ -1,0 +1,901 @@
+global:
+  scrape_interval:     15s
+  scrape_timeout:      15s
+  evaluation_interval: 15s
+
+# Attach these labels to any time series or alerts when communicating with
+# external systems (federation, remote storage, Alertmanager).
+#  external_labels:
+#      monitor: 'docker-host-alpha'
+
+# Load and evaluate rules in this file every 'evaluation_interval' seconds.
+rule_files:
+  - "alert.rules"
+
+{% if 'victoria_metrics' in groups %}
+# Settings related to the remote write feature.
+remote_write:
+{% for host in groups['victoria_metrics'] %}
+  - url: "http://{{ hostvars[host]['ansible_host'] }}:{{ docker['victoriametrics_port'] }}/api/v1/write"
+    basic_auth:
+      username: '{{ victoriametrics_user }}'
+      password: '{{ victoriametrics_passwd }}'
+{% endfor %}
+{% endif %}
+
+# A scrape configuration containing exactly one endpoint to scrape.
+scrape_configs:
+
+{% if 'prometheus' in groups %}
+  - job_name: 'prometheus'
+    scrape_interval: {{ prometheus['scrape_interval'] }}
+    basic_auth:
+      username: '{{ prom_user }}'
+      password: '{{ prom_passwd }}'
+    static_configs:
+{% for host in groups['prometheus'] %}
+      - targets: ['{{ hostvars[host]['ansible_host'] }}:{{ docker['prom_port'] }}']
+        labels:
+          host: {{ hostvars[host]['ansible_hostname'] }}
+{% endfor %}
+{% endif -%}
+
+{% if 'consul' in groups or 'consul_is_ready' in groups %}
+  - job_name: 'consul'
+    scrape_interval: {{ consul['scrape_interval'] }}
+    metrics_path: {{ consul['metrics_path'] }}
+    params:
+      format: ['prometheus']
+    honor_labels: true
+    static_configs:
+{% if 'consul_is_ready' in groups %}
+{% for host in groups['consul_is_ready'] %}
+      - targets: ['{{ hostvars[host]['ansible_host'] }}:{{ docker['consul_port'] }}']
+        labels:
+          role: server
+          datacenter: '{{ hostvars[host]['datacenter'] }}'
+{% endfor %}
+{% else %}
+{% for host in groups['consul'] %}
+{% if hostvars[host]['leader'] is defined and hostvars[host]['leader'] == 'true' %}
+      - targets: ['{{ hostvars[host]['ansible_host'] }}:{{ docker['consul_port'] }}']
+        labels:
+          role: server
+          datacenter: '{{ hostvars[host]['datacenter'] }}'
+{% endif %}
+{% endfor %}
+{% endif %}
+{% endif -%}
+
+{% if 'grafana' in groups %}
+  - job_name: 'grafana_metrics'
+    scrape_interval: {{ grafana['scrape_interval'] }}
+    scrape_timeout: {{ grafana['scrape_timeout'] }}
+    static_configs:
+{% for host in groups['grafana'] %}
+      - targets: ['{{ hostvars[host]['ansible_host'] }}:{{ docker['gf_port'] }}']
+        labels:
+          host: {{ hostvars[host]['ansible_hostname'] }}
+{% endfor %}
+{% endif -%}
+
+{% if 'pushgateway' in groups %}
+  - job_name: 'pushgateway'
+    scrape_interval: {{ pushgateway['scrape_interval'] }}
+    honor_labels: {{ pushgateway['honor_labels'] }}
+    static_configs:
+{% for host in groups['pushgateway'] %}
+      - targets: ['{{ hostvars[host]['ansible_host'] }}:{{ docker['pushgw_port'] }}']
+        labels:
+          host: {{ hostvars[host]['ansible_hostname'] }}
+{% endfor %}
+{% endif -%}
+
+{% if 'victoria_metrics' in groups %}
+  - job_name: 'victoria_metrics'
+    honor_timestamps: {{ victoriametrics['honor_timestamps'] }}
+    scrape_interval: {{ victoriametrics['scrape_interval'] }}
+    scrape_timeout: {{ victoriametrics['scrape_timeout'] }}
+    scheme: {{ victoriametrics['scheme'] }}
+    basic_auth:
+      username: '{{ victoriametrics_user }}'
+      password: '{{ victoriametrics_passwd }}'
+    static_configs:
+{% for host in groups['victoria_metrics'] %}
+      - targets: ['{{ hostvars[host]['ansible_host'] }}:{{ docker['victoriametrics_port'] }}']
+        labels:
+          host: {{ hostvars[host]['ansible_hostname'] }}
+{% endfor %}
+{% endif -%}
+
+{% if 'websocket_exporter' in groups %}
+
+  - job_name: 'websocket'
+    scrape_interval: {{ websocket['scrape_interval'] }}
+    scrape_timeout: {{ websocket['scrape_timeout'] }}
+    metrics_path: {{ websocket['metrics_path'] }}
+    static_configs:
+{% for host in groups['websocket_exporter'] %}
+      - targets: ['{{ hostvars[host]['ansible_host'] }}:{{ docker['websocket_port'] }}']
+        labels:
+          host: {{ hostvars[host]['ansible_hostname'] }}
+{% endfor %}
+{% endif -%}
+
+{% if 'pagespeed_exporter' in groups %}
+  - job_name: 'pagespeed_exporter_metrics'
+    static_configs:
+{% for host in groups['pagespeed_exporter'] %}
+      - targets: ['{{ hostvars[host]['ansible_host'] }}:{{ docker['pagespeedexp_port'] }}']
+        labels:
+          host: {{ hostvars[host]['ansible_hostname'] }}
+{% endfor %}
+  - job_name: 'pagespeed_exporter_probe'
+    metrics_path: {{ pagespeedexporter['metrics_path'] }}
+    scrape_interval: {{ pagespeedexporter['scrape_interval'] }}
+    scrape_timeout: {{ pagespeedexporter['scrape_timeout'] }}
+    static_configs:
+      - targets:
+{% for mobile_url in mobile_strategy %}
+          - '{"url":"{{ mobile_url }}","strategy":"mobile"}'
+{% endfor -%}
+{% for desktop_url in desktop_strategy %}
+          - '{"url":"{{ desktop_url }}","strategy":"desktop"}'
+{% endfor %}
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - target_label: __address__
+        replacement: "{{ ansible_host }}:{{ docker['pagespeedexp_port'] }}"
+{% endif -%}
+
+{% if 'node_exporter' in groups %}
+  - job_name: 'nodeexporter'
+    scrape_interval: {{ nodeexporter['scrape_interval'] }}
+    honor_labels: true
+    basic_auth:
+      username: '{{ nodeexporter_user }}'
+      password: '{{ nodeexporter_passwd }}'
+    consul_sd_configs:
+{% if 'consul_is_ready' in groups %}
+      - server: '{{ ansible_host }}:{{ docker['consul_port'] }}'
+{% else %}
+{% for host in groups['consul'] %}
+{% if hostvars[host]['leader'] is defined and hostvars[host]['leader'] == 'true' %}
+      - server: '{{ hostvars[host]['ansible_host'] }}:{{ docker['consul_port'] }}'
+{% endif %}
+{% endfor %}
+{% endif %}
+{% if acl_enable|bool and acl_agent_key is defined %}
+        token: '{{ acl_agent_key }}'
+{% endif %}
+        scheme: {{ nodeexporter['scheme'] }}
+        services:
+          - 'nodeexporter'
+    relabel_configs:
+    - source_labels: [__address__]
+      target_label: instance
+      replacement: '${1}'
+    - source_labels: [__meta_consul_service]
+      target_label: 'job'
+    - source_labels: [__meta_consul_node]
+      target_label: 'host'
+    - source_labels: [__meta_consul_tags]
+      regex: ',(?:[^,]+,){0}([^=]+)=([^,]+),.*'
+      target_label: '${1}'
+      replacement: '${2}'
+    - source_labels: [__meta_consul_dc]
+      target_label: 'datacenter'
+  - job_name: 'process_exporter'
+    scrape_interval: {{ process_exporter['scrape_interval'] }}
+    honor_labels: true
+    consul_sd_configs:
+{% if 'consul_is_ready' in groups %}
+      - server: '{{ ansible_host }}:{{ docker['consul_port'] }}'
+{% else %}
+{% for host in groups['consul'] %}
+{% if hostvars[host]['leader'] is defined and hostvars[host]['leader'] == 'true' %}
+      - server: '{{ hostvars[host]['ansible_host'] }}:{{ docker['consul_port'] }}'
+{% endif %}
+{% endfor %}
+{% endif %}
+{% if acl_enable|bool and acl_agent_key is defined %}
+        token: '{{ acl_agent_key }}'
+{% endif %}
+        scheme: {{ process_exporter['scheme'] }}
+        services:
+          - 'process_exporter'
+    relabel_configs:
+    - source_labels: [__address__]
+      target_label: instance
+      replacement: '${1}'
+    - source_labels: [__meta_consul_service]
+      target_label: 'job'
+    - source_labels: [__meta_consul_node]
+      target_label: 'host'
+    - source_labels: [__meta_consul_tags]
+      regex: ',(?:[^,]+,){0}([^=]+)=([^,]+),.*'
+      target_label: '${1}'
+      replacement: '${2}'
+    - source_labels: [__meta_consul_dc]
+      target_label: 'datacenter'
+{% endif -%}
+
+{% if 'springmicrometer' in groups %}
+
+{% if spring_in_consul is defined %}
+  - job_name: 'spring_micrometer'
+    scrape_interval: {{ spring_micrometer['scrape_interval'] }}
+    metrics_path: {{ spring_micrometer['metrics_path'] }}
+    scrape_timeout: {{ spring_micrometer['scrape_timeout'] }}
+    honor_labels: true
+    consul_sd_configs:
+{% if 'consul_is_ready' in groups %}
+      - server: '{{ ansible_host }}:{{ docker['consul_port']  }}'
+{% else %}
+{% for host in groups['consul'] %}
+{% if hostvars[host]['leader'] is defined and hostvars[host]['leader'] == 'true' %}
+      - server: '{{ hostvars[host]['ansible_host'] }}:{{ docker['consul_port']  }}'
+{% endif %}
+{% endfor %}
+{% endif %}
+{% if acl_enable|bool and acl_agent_key is defined %}
+        token: '{{ acl_agent_key }}'
+{% endif %}
+        scheme: {{ spring_micrometer['scheme'] }}
+        services:
+          - 'spring-micrometer'
+    relabel_configs:
+    - source_labels: [__address__]
+      target_label: instance
+      replacement: '${1}'
+    - source_labels: [__meta_consul_service]
+      target_label: 'job'
+    - source_labels: [__meta_consul_node]
+      target_label: 'host'
+    - source_labels: [__meta_consul_tags]
+      regex: ',(?:[^,]+,){0}([^=]+),.*'
+      target_label: 'application'
+    - source_labels: [__meta_consul_dc]
+      target_label: 'datacenter'
+{% else %}
+  - job_name: 'spring_micrometer'
+    scrape_interval: {{ spring_micrometer['scrape_interval'] }}
+    metrics_path: {{ spring_micrometer['metrics_path'] }}
+    scrape_timeout: {{ spring_micrometer['scrape_timeout'] }}
+    file_sd_configs:
+      - files:
+        - '/etc/prometheus/sd/springmicrometer.yml'
+{% endif -%}
+
+{% endif -%}
+
+{% if 'springmicrometer_basic_auth' in groups %}
+{% if spring_in_consul is defined %}
+  - job_name: 'spring_micrometer_basic_auth'
+    scrape_interval: {{ spring_micrometer_basic_auth['scrape_interval'] }}
+    metrics_path: {{ spring_micrometer_basic_auth['metrics_path'] }}
+    scrape_timeout: {{ spring_micrometer_basic_auth['scrape_timeout'] }}
+    honor_labels: true
+    consul_sd_configs:
+{% if 'consul_is_ready' in groups %}
+      - server: '{{ ansible_host }}:{{ docker['consul_port']  }}'
+{% else %}
+{% for host in groups['consul'] %}
+{% if hostvars[host]['leader'] is defined and hostvars[host]['leader'] == 'true' %}
+      - server: '{{ hostvars[host]['ansible_host'] }}:{{ docker['consul_port']  }}'
+{% endif %}
+{% endfor %}
+{% endif %}
+{% if acl_enable|bool and acl_agent_key is defined %}
+        token: '{{ acl_agent_key }}'
+{% endif %}
+        scheme: {{ spring_micrometer_basic_auth['scheme'] }}
+        services:
+          - 'spring-micrometer-basic-auth'
+    basic_auth:
+      username: '{{ spring_micrometer_basic_auth_user }}'
+      password: '{{ spring_micrometer_basic_auth_pass}}'
+    relabel_configs:
+    - source_labels: [__address__]
+      target_label: instance
+      replacement: '${1}'
+    - source_labels: [__meta_consul_service]
+      target_label: 'job'
+    - source_labels: [__meta_consul_node]
+      target_label: 'host'
+    - source_labels: [__meta_consul_tags]
+      regex: ',(?:[^,]+,){0}([^=]+),.*'
+      target_label: 'application'
+    - source_labels: [__meta_consul_dc]
+      target_label: 'datacenter'
+{% else %}
+  - job_name: 'spring_micrometer_basic_auth'
+    scrape_interval: {{ spring_micrometer_basic_auth['scrape_interval'] }}
+    metrics_path: {{ spring_micrometer_basic_auth['metrics_path'] }}
+    scrape_timeout: {{ spring_micrometer_basic_auth['scrape_timeout'] }}
+    basic_auth:
+      username: '{{ spring_micrometer_basic_auth_user }}'
+      password: '{{ spring_micrometer_basic_auth_pass}}'
+    file_sd_configs:
+      - files:
+        - '/etc/prometheus/sd/springmicrometerauth.yml'
+{% endif -%}
+
+{% endif -%}
+
+{% if 'cadvisor' in groups %}
+  - job_name: 'cadvisor'
+    scrape_interval: {{ cadvisor['scrape_interval'] }}
+    basic_auth:
+      username: '{{ cadvisor_user  }}'
+      password: '{{ cadvisor_passwd }}'
+    honor_labels: true
+    consul_sd_configs:
+{% if 'consul_is_ready' in groups %}
+      - server: '{{ ansible_host }}:{{ docker['consul_port'] }}'
+{% else %}
+{% for host in groups['consul'] %}
+{% if hostvars[host]['leader'] is defined and hostvars[host]['leader'] == 'true' %}
+      - server: '{{ hostvars[host]['ansible_host'] }}:{{ docker['consul_port'] }}'
+{% endif %}
+{% endfor %}
+{% endif %}
+{% if acl_enable|bool and acl_agent_key is defined %}
+        token: '{{ acl_agent_key }}'
+{% endif %}
+        scheme: {{ cadvisor['scheme'] }}
+        services:
+          - 'cadvisor'
+    relabel_configs:
+    - source_labels: [__address__]
+      target_label: instance
+      replacement: '${1}'
+    - source_labels: [__meta_consul_service]
+      target_label: 'job'
+    - source_labels: [__meta_consul_node]
+      target_label: 'host'
+    - source_labels: [__meta_consul_tags]
+      regex: ',(?:[^,]+,){0}([^=]+)=([^,]+),.*'
+      target_label: '${1}'
+      replacement: '${2}'
+    - source_labels: [__meta_consul_dc]
+      target_label: 'datacenter'
+{% endif -%}
+
+{% if 'elasticsearch_exporter' in groups %}
+  - job_name: 'elasticsearch'
+    scrape_interval: {{ elasticsearch['scrape_interval'] }}
+    honor_labels: true
+    consul_sd_configs:
+{% if 'consul_is_ready' in groups %}
+      - server: '{{ ansible_host }}:{{ docker['consul_port'] }}'
+{% else %}
+{% for host in groups['consul'] %}
+{% if hostvars[host]['leader'] is defined and hostvars[host]['leader'] == 'true' %}
+      - server: '{{ hostvars[host]['ansible_host'] }}:{{ docker['consul_port'] }}'
+{% endif %}
+{% endfor %}
+{% endif %}
+{% if acl_enable|bool and acl_agent_key is defined %}
+        token: '{{ acl_agent_key }}'
+{% endif %}
+        scheme: {{ elasticsearch['scheme'] }}
+        services:
+          - 'elasticsearch'
+    relabel_configs:
+    - source_labels: [__address__]
+      target_label: instance
+      replacement: '${1}'
+    - source_labels: [__meta_consul_service]
+      target_label: 'job'
+    - source_labels: [__meta_consul_node]
+      target_label: 'host'
+    - source_labels: [__meta_consul_tags]
+      regex: ',(?:[^,]+,){0}([^=]+)=([^,]+),.*'
+      target_label: '${1}'
+      replacement: '${2}'
+    - source_labels: [__meta_consul_dc]
+      target_label: 'datacenter'
+{% endif -%}
+
+{% if 'nginxlog' in groups %}
+  - job_name: 'nginxlog'
+    scrape_interval: {{ nginxlogexporter['scrape_interval'] }}
+    honor_labels: true
+    consul_sd_configs:
+{% if 'consul_is_ready' in groups %}
+      - server: '{{ ansible_host }}:{{ docker['consul_port'] }}'
+{% else %}
+{% for host in groups['consul'] %}
+{% if hostvars[host]['leader'] is defined and hostvars[host]['leader'] == 'true' %}
+      - server: '{{ hostvars[host]['ansible_host'] }}:{{ docker['consul_port'] }}'
+{% endif %}
+{% endfor %}
+{% endif %}
+{% if acl_enable|bool and acl_agent_key is defined %}
+        token: '{{ acl_agent_key }}'
+{% endif %}
+        scheme: {{ nginxlogexporter['scheme'] }}
+        services:
+          - 'nginxlog'
+    relabel_configs:
+    - source_labels: [__address__]
+      target_label: instance
+      replacement: '${1}'
+    - source_labels: [__meta_consul_service]
+      target_label: 'job'
+    - source_labels: [__meta_consul_node]
+      target_label: 'host'
+    - source_labels: [__meta_consul_tags]
+      regex: ',(?:[^,]+,){0}([^=]+)=([^,]+),.*'
+      target_label: '${1}'
+      replacement: '${2}'
+    - source_labels: [__meta_consul_dc]
+      target_label: 'datacenter'
+{% endif -%}
+
+{% if job_name['bb_http2xx']|bool%}
+  - job_name: 'blackbox-http_2xx'
+    scrape_interval: {{ http_2xx['scrape_interval'] }}
+    metrics_path: {{ http_2xx['metrics_path'] }}
+    params:
+      module: [http_2xx]
+    honor_labels: true
+    consul_sd_configs:
+{% if 'consul_is_ready' in groups %}
+      - server: '{{ ansible_host }}:{{ docker['consul_port'] }}'
+{% else %}
+{% for host in groups['consul'] %}
+{% if hostvars[host]['leader'] is defined and hostvars[host]['leader'] == 'true' %}
+      - server: '{{ hostvars[host]['ansible_host'] }}:{{ docker['consul_port'] }}'
+{% endif %}
+{% endfor %}
+{% endif %}
+{% if acl_enable|bool and acl_agent_key is defined %}
+        token: '{{ acl_agent_key }}'
+{% endif %}
+        scheme: {{ http_2xx['prober'] }}
+        services:
+          - 'blackbox-http-2xx'
+    relabel_configs:
+    - source_labels: [__meta_consul_service]
+      target_label: 'job'
+    - source_labels: [__meta_consul_node]
+      target_label: 'host'
+    - source_labels: [__meta_consul_tags]
+      regex: ',(?:[^,]+,){1}([^=]+),.*'
+      target_label: 'tag'
+    - source_labels: [__meta_consul_tags]
+      regex: '.*,http://([^,]+),.*'
+      replacement: '${1}'
+      target_label: __param_target
+    - source_labels: [__param_target]
+      target_label: instance
+    - target_label: __address__
+      replacement: {{ hostvars[groups['blackbox'][0]]['ansible_host'] }}:{{ hostvars[groups['blackbox'][0]]['bb_port'] }}
+    - source_labels: [__meta_consul_dc]
+      target_label: 'datacenter'
+{% endif -%}
+
+{% if job_name['bb_https2xx']|bool %}
+  - job_name: 'blackbox-https_2xx'
+    scrape_interval: {{ https_2xx['scrape_interval'] }}
+    metrics_path: {{ https_2xx['metrics_path'] }}
+    params:
+      module: [https_2xx]
+    honor_labels: true
+    consul_sd_configs:
+{% if 'consul_is_ready' in groups %}
+      - server: '{{ ansible_host }}:{{ docker['consul_port'] }}'
+{% else %}
+{% for host in groups['consul'] %}
+{% if hostvars[host]['leader'] is defined and hostvars[host]['leader'] == 'true' %}
+      - server: '{{ hostvars[host]['ansible_host'] }}:{{ docker['consul_port'] }}'
+{% endif %}
+{% endfor %}
+{% endif %}
+{% if acl_enable|bool and acl_agent_key is defined %}
+        token: '{{ acl_agent_key }}'
+{% endif %}
+        scheme: {{ https_2xx['prober'] }}
+        services:
+          - 'blackbox-https-2xx'
+    relabel_configs:
+    - source_labels: [__meta_consul_service]
+      target_label: 'job'
+    - source_labels: [__meta_consul_node]
+      target_label: 'host'
+    - source_labels: [__meta_consul_tags]
+      regex: ',(?:[^,]+,){1}([^=]+),.*'
+      target_label: 'tag'
+    - source_labels: [__meta_consul_tags]
+      regex: '.*,http://([^,]+),.*'
+      replacement: '${1}'
+      target_label: __param_target
+    - source_labels: [__param_target]
+      target_label: instance
+    - target_label: __address__
+      replacement: {{ hostvars[groups['blackbox'][0]]['ansible_host'] }}:{{ hostvars[groups['blackbox'][0]]['bb_port'] }}
+    - source_labels: [__meta_consul_dc]
+      target_label: 'datacenter'
+{% endif -%}
+
+{% if job_name['bb_http401']|bool%}
+  - job_name: 'blackbox-http_401'
+    scrape_interval: {{ http_401['scrape_interval'] }}
+    metrics_path: {{ http_401['metrics_path'] }}
+    params:
+      module: [http_401]
+    honor_labels: true
+    consul_sd_configs:
+{% if 'consul_is_ready' in groups %}
+      - server: '{{ ansible_host }}:{{ docker['consul_port'] }}'
+{% else %}
+{% for host in groups['consul'] %}
+{% if hostvars[host]['leader'] is defined and hostvars[host]['leader'] == 'true' %}
+      - server: '{{ hostvars[host]['ansible_host'] }}:{{ docker['consul_port'] }}'
+{% endif %}
+{% endfor %}
+{% endif %}
+{% if acl_enable|bool and acl_agent_key is defined %}
+        token: '{{ acl_agent_key }}'
+{% endif %}
+        scheme: {{ http_401['prober'] }}
+        services:
+          - 'blackbox-http-401'
+    relabel_configs:
+    - source_labels: [__meta_consul_service]
+      target_label: 'job'
+    - source_labels: [__meta_consul_node]
+      target_label: 'host'
+    - source_labels: [__meta_consul_tags]
+      regex: ',(?:[^,]+,){1}([^=]+),.*'
+      target_label: 'tag'
+    - source_labels: [__meta_consul_tags]
+      regex: '.*,http://([^,]+),.*'
+      replacement: '${1}'
+      target_label: __param_target
+    - source_labels: [__param_target]
+      target_label: instance
+    - target_label: __address__
+      replacement: {{ hostvars[groups['blackbox'][0]]['ansible_host'] }}:{{ hostvars[groups['blackbox'][0]]['bb_port'] }}
+    - source_labels: [__meta_consul_dc]
+      target_label: 'datacenter'
+{% endif -%}
+
+{% if job_name['bb_http302']|bool%}
+  - job_name: 'blackbox-http_302'
+    scrape_interval: {{ http_302['scrape_interval'] }}
+    metrics_path: {{ http_302['metrics_path'] }}
+    params:
+      module: [http_302]
+    honor_labels: true
+    consul_sd_configs:
+{% if 'consul_is_ready' in groups %}
+      - server: '{{ ansible_host }}:{{ docker['consul_port'] }}'
+{% else %}
+{% for host in groups['consul'] %}
+{% if hostvars[host]['leader'] is defined and hostvars[host]['leader'] == 'true' %}
+      - server: '{{ hostvars[host]['ansible_host'] }}:{{ docker['consul_port'] }}'
+{% endif %}
+{% endfor %}
+{% endif %}
+{% if acl_enable|bool and acl_agent_key is defined %}
+        token: '{{ acl_agent_key }}'
+{% endif %}
+        scheme: {{ http_302['prober'] }}
+        services:
+          - 'blackbox-http-302'
+    relabel_configs:
+    - source_labels: [__meta_consul_service]
+      target_label: 'job'
+    - source_labels: [__meta_consul_node]
+      target_label: 'host'
+    - source_labels: [__meta_consul_tags]
+      regex: ',(?:[^,]+,){1}([^=]+),.*'
+      target_label: 'tag'
+    - source_labels: [__meta_consul_tags]
+      regex: '.*,http://([^,]+),.*'
+      replacement: '${1}'
+      target_label: __param_target
+    - source_labels: [__param_target]
+      target_label: instance
+    - target_label: __address__
+      replacement: {{ hostvars[groups['blackbox'][0]]['ansible_host'] }}:{{ hostvars[groups['blackbox'][0]]['bb_port'] }}
+    - source_labels: [__meta_consul_dc]
+      target_label: 'datacenter'
+{% endif -%}
+
+{% if 'kafka_exporter' in groups %}
+  - job_name: 'kafka-exporter'
+    scrape_interval: {{ kafkaexporter['scrape_interval'] }}
+    honor_labels: true
+    consul_sd_configs:
+{% if 'consul_is_ready' in groups %}
+      - server: '{{ ansible_host }}:{{ docker['consul_port'] }}'
+{% else %}
+{% for host in groups['consul'] %}
+{% if hostvars[host]['leader'] is defined and hostvars[host]['leader'] == 'true' %}
+      - server: '{{ hostvars[host]['ansible_host'] }}:{{ docker['consul_port'] }}'
+{% endif %}
+{% endfor %}
+{% endif %}
+{% if acl_enable|bool and acl_agent_key is defined %}
+        token: '{{ acl_agent_key }}'
+{% endif %}
+        scheme: {{ kafkaexporter['scheme'] }}
+        services:
+          - 'kafka-exporter'
+    relabel_configs:
+    - source_labels: [__address__]
+      target_label: instance
+      replacement: '${1}'
+    - source_labels: [__meta_consul_service]
+      target_label: 'job'
+    - source_labels: [__meta_consul_node]
+      target_label: 'host'
+    - source_labels: [__meta_consul_tags]
+      regex: ',(?:[^,]+,){0}([^=]+)=([^,]+),.*'
+      target_label: '${1}'
+      replacement: '${2}'
+    - source_labels: [__meta_consul_dc]
+      target_label: 'datacenter'
+{% endif -%}
+
+{% if 'redis_exporter' in groups %}
+  - job_name: 'redis-exporter'
+    scrape_interval: {{ redisexporter['scrape_interval'] }}
+    honor_labels: true
+    consul_sd_configs:
+{% if 'consul_is_ready' in groups %}
+      - server: '{{ ansible_host }}:{{ docker['consul_port'] }}'
+{% else %}
+{% for host in groups['consul'] %}
+{% if hostvars[host]['leader'] is defined and hostvars[host]['leader'] == 'true' %}
+      - server: '{{ hostvars[host]['ansible_host'] }}:{{ docker['consul_port'] }}'
+{% endif %}
+{% endfor %}
+{% endif %}
+{% if acl_enable|bool and acl_agent_key is defined %}
+        token: '{{ acl_agent_key }}'
+{% endif %}
+        scheme: {{ redisexporter['scheme'] }}
+        services:
+          - 'redis-exporter'
+    relabel_configs:
+    - source_labels: [__address__]
+      target_label: instance
+      replacement: '${1}'
+    - source_labels: [__meta_consul_service]
+      target_label: 'job'
+    - source_labels: [__meta_consul_node]
+      target_label: 'host'
+    - source_labels: [__meta_consul_tags]
+      regex: ',(?:[^,]+,){0}([^=]+)=([^,]+),.*'
+      target_label: '${1}'
+      replacement: '${2}'
+    - source_labels: [__meta_consul_dc]
+      target_label: 'datacenter'
+{% endif -%}
+
+{% if 'postgres_exporter' in groups %}
+  - job_name: 'postgres-exporter'
+    scrape_interval: {{ postgresexporter['scrape_interval'] }}
+    honor_labels: true
+    consul_sd_configs:
+{% if 'consul_is_ready' in groups %}
+      - server: '{{ ansible_host }}:{{ docker['consul_port'] }}'
+{% else %}
+{% for host in groups['consul'] %}
+{% if hostvars[host]['leader'] is defined and hostvars[host]['leader'] == 'true' %}
+      - server: '{{ hostvars[host]['ansible_host'] }}:{{ docker['consul_port'] }}'
+{% endif %}
+{% endfor %}
+{% endif %}
+{% if acl_enable|bool and acl_agent_key is defined %}
+        token: '{{ acl_agent_key }}'
+{% endif %}
+        scheme: {{ postgresexporter['scheme'] }}
+        services:
+          - 'postgres-exporter'
+    relabel_configs:
+    - source_labels: [__address__]
+      target_label: instance
+      replacement: '${1}'
+    - source_labels: [__meta_consul_service]
+      target_label: 'job'
+    - source_labels: [__meta_consul_node]
+      target_label: 'host'
+    - source_labels: [__meta_consul_tags]
+      regex: ',(?:[^,]+,){0}([^=]+)=([^,]+),.*'
+      target_label: '${1}'
+      replacement: '${2}'
+    - source_labels: [__meta_consul_dc]
+      target_label: 'datacenter'
+{% endif -%}
+
+{% if 'logstash_exporter' in groups %}
+  - job_name: 'logstash-exporter'
+    scrape_interval: {{ logstashexporter['scrape_interval'] }}
+    honor_labels: true
+    consul_sd_configs:
+{% if 'consul_is_ready' in groups %}
+      - server: '{{ ansible_host }}:{{ docker['consul_port'] }}'
+{% else %}
+{% for host in groups['consul'] %}
+{% if hostvars[host]['leader'] is defined and hostvars[host]['leader'] == 'true' %}
+      - server: '{{ hostvars[host]['ansible_host'] }}:{{ docker['consul_port'] }}'
+{% endif %}
+{% endfor %}
+{% endif %}
+{% if acl_enable|bool and acl_agent_key is defined %}
+        token: '{{ acl_agent_key }}'
+{% endif %}
+        scheme: {{ logstashexporter['scheme'] }}
+        services:
+          - 'logstash-exporter'
+    relabel_configs:
+    - source_labels: [__address__]
+      target_label: instance
+      replacement: '${1}'
+    - source_labels: [__meta_consul_service]
+      target_label: 'job'
+    - source_labels: [__meta_consul_node]
+      target_label: 'host'
+    - source_labels: [__meta_consul_tags]
+      regex: ',(?:[^,]+,){0}([^=]+)=([^,]+),.*'
+      target_label: '${1}'
+      replacement: '${2}'
+    - source_labels: [__meta_consul_dc]
+      target_label: 'datacenter'
+{% endif -%}
+
+{% if 'beat_exporter' in groups %}
+  - job_name: 'beat-exporter'
+    scrape_interval: {{ beatexporter['scrape_interval'] }}
+    honor_labels: true
+    consul_sd_configs:
+{% if 'consul_is_ready' in groups %}
+      - server: '{{ ansible_host }}:{{ docker['consul_port'] }}'
+{% else %}
+{% for host in groups['consul'] %}
+{% if hostvars[host]['leader'] is defined and hostvars[host]['leader'] == 'true' %}
+      - server: '{{ hostvars[host]['ansible_host'] }}:{{ docker['consul_port'] }}'
+{% endif %}
+{% endfor %}
+{% endif %}
+{% if acl_enable|bool and acl_agent_key is defined %}
+        token: '{{ acl_agent_key }}'
+{% endif %}
+        scheme: {{ beatexporter['scheme'] }}
+        services:
+          - 'beat-exporter'
+    relabel_configs:
+    - source_labels: [__address__]
+      target_label: instance
+      replacement: '${1}'
+    - source_labels: [__meta_consul_service]
+      target_label: 'job'
+    - source_labels: [__meta_consul_node]
+      target_label: 'host'
+    - source_labels: [__meta_consul_tags]
+      regex: ',(?:[^,]+,){0}([^=]+)=([^,]+),.*'
+      target_label: '${1}'
+      replacement: '${2}'
+    - source_labels: [__meta_consul_dc]
+      target_label: 'datacenter'
+{% endif -%}
+
+{% if 'keycloak' in groups %}
+  - job_name: 'keycloak'
+    scrape_interval: {{ keycloak['scrape_interval'] }}
+    metrics_path: {{ keycloak['metrics_path'] }}
+    honor_labels: true
+    consul_sd_configs:
+{% if 'consul_is_ready' in groups %}
+      - server: '{{ ansible_host }}:{{ docker['consul_port'] }}'
+{% else %}
+{% for host in groups['consul'] %}
+{% if hostvars[host]['leader'] is defined and hostvars[host]['leader'] == 'true' %}
+      - server: '{{ hostvars[host]['ansible_host'] }}:{{ docker['consul_port'] }}'
+{% endif %}
+{% endfor %}
+{% endif %}
+{% if acl_enable|bool and acl_agent_key is defined %}
+        token: '{{ acl_agent_key }}'
+{% endif %}
+        scheme: {{ keycloak['scheme'] }}
+        services:
+          - 'keycloak'
+    relabel_configs:
+    - source_labels: [__address__]
+      target_label: instance
+      replacement: '${1}'
+    - source_labels: [__meta_consul_service]
+      target_label: 'job'
+    - source_labels: [__meta_consul_node]
+      target_label: 'host'
+    - source_labels: [__meta_consul_tags]
+      regex: ',(?:[^,]+,){0}([^=]+)=([^,]+),.*'
+      target_label: '${1}'
+      replacement: '${2}'
+    - source_labels: [__meta_consul_dc]
+      target_label: 'datacenter'
+{% endif -%}
+
+{% if 'mesh_single' in groups or 'mesh_cluster' in groups %}
+  - job_name: 'mesh'
+    scrape_interval: {{ mesh['scrape_interval'] }}
+    metrics_path: {{ mesh['metrics_path'] }}
+    honor_labels: true
+    consul_sd_configs:
+{% if 'consul_is_ready' in groups %}
+      - server: '{{ ansible_host }}:{{ docker['consul_port'] }}'
+{% else %}
+{% for host in groups['consul'] %}
+{% if hostvars[host]['leader'] is defined and hostvars[host]['leader'] == 'true' %}
+      - server: '{{ hostvars[host]['ansible_host'] }}:{{ docker['consul_port'] }}'
+{% endif %}
+{% endfor %}
+{% endif %}
+{% if acl_enable|bool and acl_agent_key is defined %}
+        token: '{{ acl_agent_key }}'
+{% endif %}
+        scheme: {{ mesh['scheme'] }}
+        services:
+          - 'mesh'
+    relabel_configs:
+    - source_labels: [__address__]
+      target_label: instance
+      replacement: '${1}'
+    - source_labels: [__meta_consul_service]
+      target_label: 'job'
+    - source_labels: [__meta_consul_node]
+      target_label: 'host'
+    - source_labels: [__meta_consul_tags]
+      regex: ',(?:[^,]+,){0}([^=]+)=([^,]+),.*'
+      target_label: '${1}'
+      replacement: '${2}'
+    - source_labels: [__meta_consul_dc]
+      target_label: 'datacenter'
+{% endif -%}
+
+{% if 'alertmanager' in groups or 'alertmanagers-cluster' in groups %}
+  - job_name: 'alertmanagers'
+    scheme: {{ alertmanager['scheme'] }}
+    static_configs:
+{% if 'alertmanagers-cluster' in groups %}
+{% for host in groups['alertmanagers-cluster'] %}
+      - targets: ['{{ hostvars[host]['ansible_host'] }}:{{ docker['alertmngr_port'] }}']
+        labels:
+          host: {{ hostvars[host]['ansible_hostname'] }}
+{% endfor %}
+{% else %}
+{% for host in groups['alertmanager'] %}
+      - targets: ['{{ hostvars[host]['ansible_host'] }}:{{ docker['alertmngr_port'] }}']
+        labels:
+          host: {{ ansible_hostname }}
+{% endfor %}
+{% endif %}
+{% endif -%}
+
+{% if 'alertmanager' in groups or 'alertmanagers-cluster' in groups %}
+alerting:
+  alertmanagers:
+  - scheme: {{ alertmanager['scheme'] }}
+    static_configs:
+{% if 'alertmanagers-cluster' in groups %}
+{% for host in groups['alertmanagers-cluster'] %}
+      - targets: ['{{ hostvars[host]['ansible_host'] }}:{{ docker['alertmngr_port'] }}']
+        labels:
+          host: {{ hostvars[host]['ansible_hostname'] }}
+{% endfor %}
+{% else %}
+{% for host in groups['alertmanager'] %}
+      - targets: ['{{ hostvars[host]['ansible_host'] }}:{{ docker['alertmngr_port'] }}']
+        labels:
+          host: {{ ansible_hostname }}
+{% endfor %}
+{% endif %}
+{% endif %}

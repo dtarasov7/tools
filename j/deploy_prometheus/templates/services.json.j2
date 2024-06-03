@@ -1,0 +1,93 @@
+{
+  "services":[
+{% if 'cadvisor' in group_names and inventory_hostname in groups['cadvisor'] %}
+  {
+  "name": "cadvisor",
+  "tags": ["cadvisor", "prometheus", "docker"],
+  "port": {{ docker['cadvisor_port'] }}
+  },
+{% endif -%}
+{% if 'elasticsearch_exporter' in group_names and inventory_hostname in groups['elasticsearch_exporter'] %}
+  {
+  "name": "elasticsearch",
+  "tags": ["elasticsearch", "prometheus", "elk"],
+  "port": {{ docker['elexp_port'] }}
+  },
+{% endif -%}
+{% if 'nginxlog' in group_names and inventory_hostname in groups['nginxlog'] %}
+  {
+  "name": "nginxlog",
+  "tags": ["nginxlog", "prometheus", "nginxlog-exporter"],
+  "port": {{ docker['nginxlog_port'] }}
+  },
+{% endif -%}
+{% if 'kafka_exporter' in group_names and inventory_hostname in groups['kafka_exporter'] %}
+  {
+  "name": "kafka-exporter",
+  "tags": ["kafka", "prometheus", "kafka-exporter"],
+  "port": {{ docker['nginxlog_port'] }}
+  },
+{% endif -%}
+{% if 'redis_exporter' in group_names and inventory_hostname in groups['redis_exporter'] %}
+  {
+  "name": "redis-exporter",
+  "tags": ["redis", "prometheus", "redis-exporter"],
+  "port": {{ docker['redisexp_port'] }}
+  },
+{% endif -%}
+{% if 'postgres_exporter' in group_names and inventory_hostname in groups['postgres_exporter'] %}
+  {
+  "name": "postgres-exporter",
+  "tags": ["postgres", "prometheus", "postgres-exporter"],
+  "port": {{ docker['postgresexp_port'] }}
+  },
+{% endif -%}
+{% if 'logstash_exporter' in group_names and inventory_hostname in groups['logstash_exporter'] %}
+  {
+  "name": "logstash-exporter",
+  "tags": ["logstash", "prometheus", "logstash-exporter"],
+  "port": {{ docker['logstashexp_port'] }}
+  },
+{% endif -%}
+{% if 'beat_exporter' in group_names and inventory_hostname in groups['beat_exporter'] %}
+  {
+  "name": "beat-exporter",
+  "tags": ["filebeat", "prometheus", "beat-exporter"],
+  "port": {{ docker['logstashexp_port'] }}
+  },
+{% endif -%}
+{% if 'keycloak' in group_names and inventory_hostname in groups['keycloak'] %}
+  {
+  "name": "keycloak",
+  "tags": ["keycloak", "prometheus"],
+  "port": {{ docker['keycloak_port'] }}
+  },
+{% endif -%}
+{% if 'mesh_single' in group_names and inventory_hostname in groups['mesh_single'] %}
+{% for item in groups['mesh_single'] %}
+{% for port in hostvars[item]['mesh_port'] %}
+  {
+  "name": "mesh",
+  "id": "mesh{{ port }}",
+  "tags": ["mesh", "prometheus"],
+  "port": {{ port }}
+  },
+{% endfor %}
+{% endfor %}
+{% endif -%}
+{% if 'mesh_cluster' in group_names and inventory_hostname in groups['mesh_cluster'] %}
+  {
+  "name": "mesh",
+  "tags": ["mesh", "prometheus"],
+  "port": {{ mesh_port }}
+  },
+{% endif -%}
+{% if 'node_exporter' in group_names and inventory_hostname in groups['node_exporter'] %}
+  {
+  "name": "nodeexporter",
+  "tags": ["node-exporter", "prometheus", "os"],
+  "port": {{ docker['nodeexp_port'] }}
+  }
+{% endif -%}
+]
+}

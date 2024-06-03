@@ -1,0 +1,63 @@
+alertmanager:
+  interval: 1m
+  servers:
+{% if 'alertmanager' in groups %}
+{% for host in groups['alertmanager'] %}
+    - name: alertmanager-{{ hostvars[host]['ansible_hostname'] }}
+      uri: http://{{ hostvars[host]['ansible_host'] }}:{{ docker['alertmngr_port'] }}
+      timeout: 10s
+      proxy: true
+{% endfor %}
+{% endif %}
+{% if 'alertmanagers-cluster' in groups %}
+{% for host in groups['alertmanagers-cluster'] %}
+    - name: alertmanager-{{ hostvars[host]['ansible_hostname'] }}
+      cluster: {{ alrtmngr_cluster }}
+      uri: http://{{ hostvars[host]['ansible_host'] }}:{{ docker['alertmngr_port'] }}
+      timeout: 10s
+      proxy: true
+{% endfor %}
+{% endif %}
+authentication:
+  basicAuth:
+    users:
+      - username: {{ karma['user'] }}
+        password: {{ karma['passwd'] }}
+authorization:
+  acl:
+    silences: /opt/acls.yaml
+  groups:
+    - name: admins
+      members:
+        - {{ karma['user'] }}
+karma:
+  name: Karma_{{ ansible_hostname }}
+labels:
+  color:
+    custom:
+      severity:
+        - value: info
+          color: "#87c4e0"
+        - value: warning
+          color: "#fcff3b"
+        - value: critical
+          color: "#ffb73b"
+        - value: "fatal"
+          color: "#ff3b5b"
+ui:
+  refresh: 30s
+  hideFiltersWhenIdle: true
+  colorTitlebar: true
+  minimalGroupWidth: 420
+  alertsPerGroup: 5
+  collapseGroups: collapsedOnMobile
+  animations: true
+  theme: dark
+  multiGridLabel: "severity"
+  multiGridSortReverse: true
+log:
+  config: false
+  level: info
+  format: json
+  requests: true
+  timestamp: true

@@ -1,0 +1,18 @@
+---
+- name: Copy node, root and admin certificates
+  copy:
+    src: "{{ product_environment }}/{{ item }}"
+    dest: "{{ opensearch_data_dir }}/certs"
+    owner: '1000'
+    mode: 0600
+  with_items:
+    - "node-{{ ansible_hostname }}.key"
+    - "node-{{ ansible_hostname }}.pem"
+    - "node-{{ ansible_hostname }}_http.key"
+    - "node-{{ ansible_hostname }}_http.pem"
+    - "{{ ansible_hostname }}-kibana_http.pem"
+    - "{{ ansible_hostname }}-kibana_http.key"
+    - admin.key
+    - admin.pem
+    - root-ca.pem
+    - root-ca.key

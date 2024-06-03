@@ -1,0 +1,16 @@
+---
+orgs:
+  - org_name: "ORG_1"
+    code: 56
+    users:
+     - username: user_1
+       passwd: pass
+     - username: user_2
+       passwd: pass
+  - org_name: "ORG_2"
+    code: 62
+    users:
+     - username: user_3
+       passwd: pass
+     - username: user_4
+       passwd: pass

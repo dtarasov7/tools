@@ -1,0 +1,15 @@
+#!/bin/bash
+snapshotName=$(date -d "today" +"%Y%m%d%H%M")
+response=$(\
+  curl --insecure \
+    --write-out %{http_code} \
+    --silent \
+    -u admin:{{ opensearch['admin_passwd'] | default('admin') }} \
+    -X PUT "https://{{ ansible_host }}:{{ opensearch['port0'] | default('9200') }}/_snapshot/{{ opensearch_snapshot_repository_name }}/$snapshotName?wait_for_completion=true" \
+)
+
+  if [[ "$(echo ${response} | sed 's/{.*}//')" = "200" ]]; then
+    echo "Info: New backup successfully created"
+  else
+    echo "Error: New backup is not created. HTTP code is ${response}"
+  fi

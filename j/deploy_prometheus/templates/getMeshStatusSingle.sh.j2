@@ -1,0 +1,44 @@
+#!/bin/bash
+# add to crontab
+# */1 * * * * root /opt/ans_prom_deploy/getMeshStatus_single.sh
+pushgtw={{ hostvars[groups['pushgateway'][0]]['ansible_host'] }}:{{ docker['pushgw_port'] }}
+for host in {% for host in groups['mesh_single'] %}{% for port in mesh_port %}{% for key, value in port.items() %}{{ hostvars[host]['ansible_host'] }}:{{ value }} {% endfor %}{% endfor %}{% endfor %}
+
+do
+#check
+check=$(curl --connect-timeout 5 -I "http://$host/api/v2/status" > /dev/null 2>&1 && echo 1 || echo 0)
+
+if  [ $check == "0" ]; then
+#push to mesh_status metrics
+echo "get_mesh_status $check" | curl --data-binary @- http://$pushgtw/metrics/job/mesh_status/instance/$host
+#push to mesh_versions metrics
+cat << EOF | curl --data-binary @- http://$pushgtw/metrics/job/mesh_versions/instance/$host
+get_mesh_versions{db_vendor="0",mesh_version="0",db_version="0",search_vendor="0",search_version="0",vertx_version="0"} 0
+EOF
+
+else
+#status
+status=`curl -s --location --request GET "http://$host/api/v2/status" --header "Content-Type: application/json" | jq -r ".status"`
+mesh_status=`if [ $status == "READY" ]; then echo 1; else echo 0; fi`
+#push to mesh_status metrics
+cat << EOF | curl --data-binary @- http://$pushgtw/metrics/job/mesh_status/instance/$host
+get_mesh_status $mesh_status
+EOF
+#meshVersion
+mesh_version=`curl -s --location --request GET "http://$host/api/v2/versions" --header "Content-Type: application/json" | jq -r ".meshVersion"`
+#databaseVendor
+db_vendor=`curl -s --location --request GET "http://$host/api/v2/versions" --header "Content-Type: application/json" | jq -r ".databaseVendor"`
+#databaseVersion
+db_version=`curl -s --location --request GET "http://$host/api/v2/versions" --header "Content-Type: application/json" | jq -r ".databaseVersion" | awk '{print $1}'`
+#searchVendor
+search_vendor=`curl -s --location --request GET "http://$host/api/v2/versions" --header "Content-Type: application/json" | jq -r ".searchVendor"`
+#searchVersion
+search_version=`curl -s --location --request GET "http://$host/api/v2/versions" --header "Content-Type: application/json" | jq -r ".searchVersion"`
+#vertxVersion
+vertx_version=`curl -s --location --request GET "http://$host/api/v2/versions" --header "Content-Type: application/json" | jq -r ".vertxVersion"`
+#push to mesh_versions metrics
+cat << EOF | curl --data-binary @- http://$pushgtw/metrics/job/mesh_versions/instance/$host
+get_mesh_versions{db_vendor="$db_vendor",mesh_version="$mesh_version",db_version="$db_version",search_vendor="$search_vendor",search_version="$search_version",vertx_version="$vertx_version"} 1
+EOF
+fi
+done

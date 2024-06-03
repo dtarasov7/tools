@@ -1,0 +1,19 @@
+#!/bin/bash
+#set -x
+
+WHEREIS_DOCKER=$(whereis docker | awk '{print $2}')
+
+{% if curator_logrotate_log is undefined %}
+if [ -f "{{ opensearch_data_dir }}/curator/log/curator.log" ]; then
+    > {{ opensearch_data_dir }}/curator/log/curator.log
+fi
+{% endif %}
+
+for ACTION in {% for item in curator_delete_indices %}{{ item['action'] }}{% if not loop.last %} {% endif %}{% endfor %}
+
+do
+
+$WHEREIS_DOCKER run --rm --name curator -v {{ opensearch_data_dir }}/curator/config.yml:/opt/config.yml -v {{ opensearch_data_dir }}/curator/$ACTION.yml:/opt/action.yml -v {{ opensearch_data_dir }}/curator/log:/var/log -e TZ=Europe/Moscow -e LC_ALL=C.UTF-8 -e LANG=C.UTF-8 {{ curator['image'] }} --config /opt/config.yml /opt/action.yml
+
+done
+

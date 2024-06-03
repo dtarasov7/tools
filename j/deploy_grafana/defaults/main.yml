@@ -1,0 +1,56 @@
+# API keys to configure
+grafana_api_keys:
+  - name: "export_import_dashboards"
+    role: "Admin"
+
+### kiosk size metrics
+mini_kiosk: false
+full_kiosk: false
+
+### creat organization (default Org is "Main Org." with "id1")
+grafana_organization:
+  - name: "Second Org." #id2
+  - name: "Third Org." #id3
+
+### creat teams
+grafana_team:
+# examples:
+#  - name: "My Team" #the Team name needs to be unique
+#    email: "team@localhost" #optional
+#    teamId: 2 #optional
+  - name: "First Team"
+    email:
+    teamId: 2
+  - name: "Secomd Team"
+    email:
+    teamId: 3
+
+### creat users
+grafana_users:
+# examples:
+#  - name: "test"
+#    email: "test@localhost"
+#    login: "test"
+#    password: "test"
+#    OrgId: 2
+#    role: "Admin" #optional (default - Viewer)
+#    isGrafanaAdmin: true  #optional (it is a Global Admin permission, default - false)
+  - name: "test"
+    email: "test@localhost"
+    login: "test"
+    password: "test"
+    OrgId: 2
+    role: "Admin"
+    isGrafanaAdmin: false
+  - name: "test2"
+    email: "test2@localhost"
+    login: "test2"
+    password: "test2"
+    OrgId: 3
+  - name: "test3"
+    email: "test3@localhost"
+    login: "test3"
+    password: "test3"
+    OrgId: 3
+    role: "Admin"
+    isGrafanaAdmin: true

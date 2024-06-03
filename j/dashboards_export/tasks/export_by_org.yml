@@ -1,0 +1,43 @@
+---
+- set_fact:
+    grafana_org_name: "{{ grafana_org.name }}"
+
+- name: "Host: {{ grafana.path }} - Check if Organization with name '{{ grafana_org_name }}' existe"
+  uri:
+    url: "http://{{ grafana.path }}/api/orgs/name/{{ grafana_org_name }}"
+    user: "{{ grafana.global_user | default(grafana_org.user) }}"
+    password: "{{ grafana.global_passwd | default(grafana_org.passwd) }}"
+    force_basic_auth: true
+    return_content: true
+    status_code: 200, 401, 403, 404
+  no_log: true
+  delegate_to: localhost
+  register: check_org
+
+- debug:
+    msg: "Organization with name '{{ grafana_org_name }}' existe"
+  when: check_org.status == 200
+
+- debug:
+    msg: "Organization with name '{{ grafana_org_name }}' doesn't existe"
+  when: check_org.status == 404
+
+- debug:
+    msg: "Forbidden. User has no global permissions"
+  when: check_org.status == 403
+
+- debug:
+    msg: "Unauthorized. Check login and password for user with global permissions"
+  when: check_org.status == 401
+
+- name: "Define the OrgId for '{{ grafana_org_name }}' organization"
+  set_fact:
+    org_id: "{{ (check_org.content | from_json).id }}"
+  when: check_org.status == 200
+
+- name: Export dashboards by type
+  include_tasks: export_by_dashboard_type.yml
+  loop: "{{ grafana_org['type'] }}"
+  loop_control:
+      loop_var: grafana_type
+  when: grafana_org['type'] is defined and check_org.status == 200

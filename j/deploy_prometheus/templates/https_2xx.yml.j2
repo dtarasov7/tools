@@ -1,0 +1,49 @@
+{% for host in groups['bb'] %}
+{% if hostvars[host]['https2xx_module']|bool %}
+{%- if hostvars[host]['fullback_target']|bool %}
+- targets:
+  - {{ targets['fullback_scheme'] | default(http) }}://{{ hostvars[host]['ansible_host'] }}:{{ targets['fullback_port'] }}{{ targets['fullback_path'] | default() }}
+  labels:
+    tag: fullback
+{% endif -%}
+{%- if hostvars[host]['cash_target']|bool %}
+- targets:
+  - {{ targets['fullback_scheme'] | default(http) }}://{{ hostvars[host]['ansible_host'] }}:{{ targets['cash_port'] }}{{ targets['cash_path'] | default() }}
+  labels:
+    tag: cash
+{% endif -%}
+{%- if hostvars[host]['mortgage_target']|bool %}
+- targets:
+  - {{ targets['mortgage_scheme'] | default(http) }}://{{ hostvars[host]['ansible_host'] }}:{{ targets['mortgage_port'] }}{{ targets['mortgage_path'] | default() }}
+  labels:
+    tag: mortgage
+{% endif -%}
+{%- if hostvars[host]['integration_target']|bool %}
+- targets:
+  - {{ targets['integration_scheme'] | default(http) }}://{{ hostvars[host]['ansible_host'] }}:{{ targets['integration_port'] }}{{ targets['integration_path'] | default() }}
+  labels:
+    tag: integration
+{% endif -%}
+{%- if hostvars[host]['elasticsearch_target']|bool %}
+- targets:
+  - {{ targets['elasticsearch_scheme'] | default(http) }}://{{ hostvars[host]['ansible_host'] }}:{{ targets['elasticsearch_port'] }}{{ targets['elasticsearch_path'] | default() }}
+  labels:
+    tag: elasticsearch
+{% endif -%}
+{%- if hostvars[host]['kibana_target']|bool %}
+- targets:
+  - {{ targets['kibana_scheme'] | default(http) }}://{{ hostvars[host]['ansible_host'] }}:{{ targets['kibana_port'] }}{{ targets['kibana_path'] | default() }}
+  labels:
+    tag: kibana
+{% endif -%}
+{%- if hostvars[host]['test_target']|bool %}
+- targets:
+  - {{ targets['test_scheme'] | default(http) }}://{{ hostvars[host]['ansible_host'] }}:{{ targets['test_port'] }}{{ targets['test_path'] | default() }}
+  labels:
+    tag: test
+    host: {{ inventory_hostname }}
+{% endif -%}
+{% else %}
+
+{% endif %}
+{% endfor %}

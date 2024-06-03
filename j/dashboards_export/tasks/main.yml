@@ -1,0 +1,15 @@
+---
+# - name: Define a list of dashboards in a directory 'source_dashboards'
+#   find:
+#     paths: "source_dashboards/"
+#     recurse: yes
+#     patterns: "*.json"
+#   register: dashboards
+#   delegate_to: localhost
+
+- name: Export dashboards from source directory
+  include_tasks: export_dashboards.yml
+  run_once: true
+  loop: "{{ grafana_data }}"
+  loop_control:
+      loop_var: grafana

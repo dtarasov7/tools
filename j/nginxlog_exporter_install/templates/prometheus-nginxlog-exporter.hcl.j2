@@ -1,0 +1,26 @@
+listen {
+  port = {{ config['port'] | default(4040) }}
+  address = {{ config['address'] | default(0.0.0.0) }}
+  metrics_endpoint = "/metrics"
+}
+
+consul {
+  enable = false
+}
+
+namespace "{{ config['namespace'] }}" {
+  format = "{{ config['log_format_nginx'] }}"
+  source {
+    files = [
+      "{{ config['source_files'] }}"
+    ]
+  }
+
+  labels {
+    service = "{{ config['labels_service'] }}"
+    environment = "{{ config['labels_environment'] }}"
+    hostname = "{{ config['labels_hostname'] | default(ansible_hostname) }}"
+  }
+
+  histogram_buckets = [.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10]
+}

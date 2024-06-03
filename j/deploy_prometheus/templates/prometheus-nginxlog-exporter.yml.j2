@@ -1,0 +1,36 @@
+listen:
+  port: {{ docker['nginxlog_port'] }}
+  address: "0.0.0.0"
+
+consul:
+  enable: false
+
+namespaces:
+{% if mortgage_access|bool %}
+  - name: nginx_mortgage_access
+    metrics_override:
+      prefix: "nginx"
+    namespace_label: "vhost"
+    parser: "json"
+    source:
+      files:
+        - /mnt/nginxlogs/{{ mortgage['source_files'] }}
+    labels:
+      service: "nginx_mortgage_access"
+      hostname: "{{ ansible_host }}"
+    histogram_buckets: [.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10]
+{% endif -%}
+{% if cash_access|bool %}
+  - name: nginx_cash_access
+    metrics_override:
+      prefix: "nginx"
+    namespace_label: "vhost"
+    parser: "json"
+    source:
+      files:
+        - /mnt/nginxlogs/{{ cash['source_files'] }}
+    labels:
+      service: "nginx_cash_access"
+      hostname: "{{ ansible_host }}"
+    histogram_buckets: [.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10]
+{% endif -%}

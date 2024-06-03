@@ -1,0 +1,26 @@
+{% for host in groups['springmicrometer'] %}
+{% if app_integration is defined and app_integration|bool %}
+- targets: ['{{ hostvars[host]['ansible_host'] }}:{{ hostvars[host]['app_integration_port'] }}']
+  labels:
+    host: {{ hostvars[host]['ansible_hostname'] }}
+    application: integration
+{% endif -%}
+{% if app_fullBack is defined and app_fullBack|bool %}
+- targets: ['{{ hostvars[host]['ansible_host'] }}:{{ hostvars[host]['app_fullBack_port'] }}']
+  labels:
+    host: {{ hostvars[host]['ansible_hostname'] }}
+    application: fullBack
+{% endif -%}
+{% if app_lightBackCach is defined and app_lightBackCach|bool %}
+- targets: ['{{ hostvars[host]['ansible_host'] }}:{{ hostvars[host]['app_lightBackCach_port'] }}']
+  labels:
+    host: {{ hostvars[host]['ansible_hostname'] }}
+    application: lightBackCach
+{% endif -%}
+{% if app_lightBackMortgage is defined and app_lightBackMortgage|bool %}
+- targets: ['{{ hostvars[host]['ansible_host'] }}:{{ hostvars[host]['app_lightBackMortgage_port'] }}']
+  labels:
+    host: {{ hostvars[host]['ansible_hostname'] }}
+    application: lightBackMortgage
+{% endif -%}
+{% endfor %}

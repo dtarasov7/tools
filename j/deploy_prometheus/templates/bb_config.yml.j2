@@ -1,0 +1,56 @@
+modules:
+{% if job_name['bb_http2xx']|bool %}
+  http_2xx:
+    prober: {{ http_2xx['prober'] }}
+    timeout: {{ http_2xx['timeout'] }}
+    http:
+      valid_http_versions: [{{ http_2xx['valid_http_versions'] }}]
+      valid_status_codes: [{{ http_2xx['valid_status_codes'] }}]
+      method: {{ http_2xx['method'] }}
+      no_follow_redirects: {{ http_2xx['no_follow_redirects'] }}
+      fail_if_ssl: {{ http_2xx['fail_if_ssl'] }}
+      fail_if_not_ssl: {{ http_2xx['fail_if_not_ssl'] }}
+      preferred_ip_protocol: {{ http_2xx['preferred_ip_protocol'] }}
+{% endif %}
+
+{% if job_name['bb_https2xx']|bool %}
+  https_2xx:
+    prober: {{ https_2xx['prober'] }}
+    timeout: {{ https_2xx['timeout'] }}
+    http:
+      valid_http_versions: [{{ https_2xx['valid_http_versions'] }}]
+      valid_status_codes: [{{ https_2xx['valid_status_codes'] }}]
+      method: {{ https_2xx['method'] }}
+      no_follow_redirects: {{ https_2xx['no_follow_redirects'] }}
+      fail_if_ssl: {{ https_2xx['fail_if_ssl'] }}
+      fail_if_not_ssl: {{ https_2xx['fail_if_not_ssl'] }}
+      preferred_ip_protocol: {{ https_2xx['preferred_ip_protocol'] }}
+{% endif %}
+
+{% if job_name['bb_http401']|bool %}
+  http_401:
+    prober: {{ http_401['prober'] }}
+    timeout: {{ http_401['timeout'] }}
+    http:
+      valid_http_versions: [{{ http_401['valid_http_versions'] }}]
+      valid_status_codes: [{{ http_401['valid_status_codes'] }}]
+      method: {{ http_401['method'] }}
+      no_follow_redirects: {{ http_401['no_follow_redirects'] }}
+      fail_if_ssl: {{ http_401['fail_if_ssl'] }}
+      fail_if_not_ssl: {{ http_401['fail_if_not_ssl'] }}
+      preferred_ip_protocol: {{ http_401['preferred_ip_protocol'] }}
+{% endif %}
+
+{% if job_name['bb_http302']|bool %}
+  http_302:
+    prober: {{ http_302['prober'] }}
+    timeout: {{ http_302['timeout'] }}
+    http:
+      valid_http_versions: [{{ http_302['valid_http_versions'] }}]
+      valid_status_codes: [{{ http_302['valid_status_codes'] }}]
+      method: {{ http_302['method'] }}
+      no_follow_redirects: {{ http_302['no_follow_redirects'] }}
+      fail_if_ssl: {{ http_302['fail_if_ssl'] }}
+      fail_if_not_ssl: {{ http_302['fail_if_not_ssl'] }}
+      preferred_ip_protocol: {{ http_302['preferred_ip_protocol'] }}
+{% endif %}

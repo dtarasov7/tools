@@ -1,0 +1,85 @@
+route:
+  receiver: {{ default_receiver }}
+  group_by: ['alertname', 'datacenter', 'job', 'alert_route_to_bot']
+  group_wait: 30s
+  group_interval: 1m
+  repeat_interval: 8737h
+  routes:
+  - match_re:
+      severity: fatal|critical|warning|info
+    receiver: blackhole
+{% if receiver_slack|bool or receiver_email|bool or receiver_webhook is defined and receiver_webhook|length %}
+    routes:
+{% if receiver_slack|bool %}
+    - match:
+        alert_route_to: slack
+      receiver: slack
+{% endif -%}
+{% if receiver_email|bool %}
+    - match:
+        alert_route_to: email
+      receiver: email
+{% endif -%} 
+{% if receiver_webhook is defined and receiver_webhook|length %}
+{% for bot in receiver_webhook %}
+{% if bot == 'telegram' %}
+{% for item in telegram %}
+{% if item['name'] == 'telegramCritical' %}
+    - match_re:
+        alert_route_to_bot: .*{{ item['name'] }}.*
+      receiver: {{ item['name'] }}
+{% endif %}
+{% if item['name'] == 'telegramFatal' %}
+    - match_re:
+        alert_route_to_bot: .*{{ item['name'] }}.*
+      receiver: {{ item['name'] }}
+{% endif %}
+{% endfor %}
+{% endif %}
+{% endfor %}
+{% endif %}
+{% endif -%}
+receivers:
+- name: blackhole
+{% if receiver_slack|bool %}
+- name: slack
+  slack_configs:
+  - send_resolved: {{ send_resolved }}
+    title: "{{ '{{' }}  range .Alerts {{ '}}' }}{{ '{{' }}  .Annotations.summary {{ '}}' }}\n{{ '{{' }}  end {{ '}}' }}"
+    text: "{{ '{{' }}  range .Alerts {{ '}}' }}{{ '{{' }}  .Annotations.description {{ '}}' }}\n{{ '{{' }}  end {{ '}}' }}"
+    username: '{{ slack_username }}'
+    channel: '#{{ slack_channel }}'
+    api_url: '{{ slack_url }}'
+{% endif -%}
+{% if receiver_email|bool %}
+- name: email
+  email_configs:
+  - to: 'TEST@RSHB.INTECH.RU'
+    send_resolved: {{ send_resolved }}
+    require_tls: false
+    from: '{{ email_from }}'
+    smarthost: '{{ mail_server }}:{{ mail_server_port }}'
+    auth_username: "{{ email_auth_username }}"
+    auth_identity: "{{ email_auth_identity }}"
+    auth_password: "{{ email_auth_password }}"
+{% endif -%}
+{% if receiver_webhook is defined and receiver_webhook|length %}
+{% for bot in receiver_webhook %}
+{% if bot == 'telegram' %}
+{% for item in telegram %}
+{% if item['name'] == 'telegramCritical' %}
+- name: {{ item['name'] }}
+  webhook_configs:
+  - url: http://{{ ansible_host }}:{{ docker['telegrambot_port'] }}/alert/{{ item['chatID'] }}
+    send_resolved: {{ send_resolved }}
+{% endif %}
+{% if item['name'] == 'telegramFatal' %}
+- name: {{ item['name'] }}
+  webhook_configs:
+  - url: http://{{ ansible_host }}:{{ docker['telegrambot_port'] }}/alert/{{ item['chatID'] }}
+    send_resolved: {{ send_resolved }}
+{% endif %}
+{% endfor %}
+{% endif %}
+{% endfor %}
+{% endif -%}

@@ -1,0 +1,20 @@
+{{if eq .Status "firing"}}
+Статус: <b>🔴 Warning</b>
+<b>Список активных предупреждений:</b>
+{{- range $val := .Alerts }}
+<a>##### Alert #####</a>
+Событие зафиксировано: {{ $val.StartsAt | str_FormatDate }}
+{{$title := index $val.Annotations "firing_msg" -}}
+Описание: {{$title}}
+{{- end -}}
+{{end }}
+{{if eq .Status "resolved"}}
+Статус: <b>✅ Resolved</b>
+<b>Список активных предупреждений:</b>
+{{- range $val := .Alerts }}
+<a>##### Alert #####</a>
+Событие сформировано: {{ $val.StartsAt | str_FormatDate }}
+{{$title := index $val.Annotations "resolved_msg" -}}
+Описание: {{$title}}
+{{- end -}}
+{{end }}

@@ -1,0 +1,7 @@
+---
+- name: Export dashboards by organization
+  include_tasks: export_by_org.yml
+  loop: "{{ grafana['org'] }}"
+  loop_control:
+      loop_var: grafana_org
+  when: grafana['org'] is defined

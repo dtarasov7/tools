@@ -1,0 +1,96 @@
+---
+################## prometheus.yml
+consul:
+     scrape_interval: 15s
+     metrics_path: /v1/agent/metrics
+nodeexporter:
+     scrape_interval: 15s
+     scheme: http
+process_exporter:
+     scrape_interval: 15s
+     scheme: http
+grafana:
+     scrape_interval: 15s
+     scrape_timeout: 5s
+spring_micrometer:    
+     scrape_interval: 15s
+     metrics_path: /actuator/prometheus
+     scrape_timeout: 15s
+     scheme: http
+spring_micrometer_basic_auth:    
+     scrape_interval: 15s
+     metrics_path: /actuator/prometheus
+     scrape_timeout: 15s
+     scheme: http
+cadvisor:
+     scrape_interval: 15s
+     scheme: http
+elasticsearch:
+     scrape_interval: 15s
+     scheme: http
+prometheus:
+     scrape_interval: 15s
+#     proxy_pass_nginx_port: 19090
+     log_to_syslog: yes
+pushgateway:
+     scrape_interval: 10s
+     honor_labels: true
+nginxlogexporter:
+     scrape_interval: 15s
+     scheme: http
+alertmanager:
+     scrape_interval: 15s
+     scrape_timeout: 10s
+     scheme: http
+kafkaexporter:
+     scrape_interval: 60s
+     scheme: http
+redisexporter:
+     scrape_interval: 60s
+     scheme: http
+postgresexporter:
+     scrape_interval: 60s
+     scheme: http
+victoriametrics:
+     honor_timestamps: true
+     scrape_interval: 15s
+     scrape_timeout: 10s
+     scheme: http
+pagespeedexporter:
+     scrape_interval: 30m
+     scrape_timeout: 240s
+     metrics_path: /probe
+logstashexporter:    
+     scrape_interval: 15s
+     scheme: http
+beatexporter:    
+     scrape_interval: 15s
+     scheme: http
+keycloak:
+     scrape_interval: 15s
+     metrics_path: /auth/realms/master/metrics
+     scheme: http
+mesh:
+     scrape_interval: 30s
+     metrics_path: /api/v2/metrics
+     scheme: http
+websocket:
+     scrape_interval: 15s
+     scrape_timeout: 10s
+     metrics_path: /metrics
+# job_name: springmicrometer
+app_fullcash_port: '8080'
+app_fullmortgage_port: '8082'
+app_lightcash_port: '9082'
+app_lightmortgage_port: '9081'
+app_mqlistener_port: '8083'
+app_mock_port: '8082'
+app_soapmock_port: '8014'
+app_loadTestEsiaEmulation: true
+app_esiaemulation_port: '9090'
+# job_name: springmicrometer_basic_auth
+app_integration_port: '8081'
+#auth
+spring_micrometer_basic_auth_user: 'main-back'
+spring_micrometer_basic_auth_pass: 'Qwe1235678'
+

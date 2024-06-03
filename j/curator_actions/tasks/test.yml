@@ -1,0 +1,6 @@
+---
+- name: send a message to chat in playbook
+  telegram:
+    token: '1727026763:AAHd4x9AzzUWTJ_r_xvQiFzD8Xx_MwD6q-A'
+    chat_id: -923061663
+    msg: "Ansible task {{role_name}}\n{{ansible_play_role_names}}\nhosts: {{ansible_play_batch}}\ninventory: {{inventory_file}}\nfinished"

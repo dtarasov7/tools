@@ -1,0 +1,5 @@
+{% for host in groups['node_exporter'] %}
+- targets: ['{{ hostvars[host]['ansible_host'] }}:{{ docker['nodeexp_port'] }}']
+  labels:
+    host: {{ hostvars[host]['ansible_hostname'] }}
+{% endfor %}

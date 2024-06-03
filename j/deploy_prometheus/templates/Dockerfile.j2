@@ -1,0 +1,20 @@
+{% if docker_hub|bool %}
+FROM curlimages/curl:{{ docker['curl_ver'] }}
+{% else %}
+FROM {{ docker_local }}/curlimages/curl:{{ docker['curl_ver'] }}
+{% endif %}
+
+USER root
+
+RUN mkdir /consul
+
+ADD entrypoint.sh /consul/entrypoint.sh
+ADD consul_reg.sh /consul/consul_reg.sh
+
+RUN chmod +x /consul/entrypoint.sh && \
+    chmod +x /consul/consul_reg.sh
+
+WORKDIR /consul
+
+ENTRYPOINT  [ "/consul/entrypoint.sh" ]
+CMD [ "/consul/consul_reg.sh" ]

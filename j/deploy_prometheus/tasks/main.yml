@@ -1,0 +1,459 @@
+---
+#- name: facts
+#  gather_facts:
+     
+- name: "Make root dir: {{ app_path }}"
+  file:
+    path: "{{ app_path }}"
+    state: directory
+    mode: '0775'
+    owner: "{{ svc_user }}"
+  # tags:
+  #   - make_root_dir
+
+- name: Make data subdirs
+  file:
+    path: "{{ item.path }}"
+    state: directory
+    mode: "{{ item.mode }}"
+    owner: "{{ item.user }}"
+  with_items:
+    - { path: '{{ app_path }}/{{ prom_data_dir }}', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+    - { path: '{{ app_path }}/{{ prom_data_dir }}/sd', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+    - { path: '{{ app_path }}/{{ alertmng_data_dir }}', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+    - { path: '{{ app_path }}/{{ grafana_data_dir }}', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+    - { path: '{{ app_path }}/{{ bb_data_dir }}', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+    - { path: '{{ app_path }}/{{ nginxlog_data_dir }}', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+    - { path: '{{ app_path }}/{{ keycloak_data_dir }}', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+    - { path: '{{ app_path }}/{{ pg_data_dir }}', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+    - { path: '{{ app_path }}/{{ karma_data_dir }}', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+    - { path: '{{ app_path }}/{{ consul_data_dir }}', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+    - { path: '{{ app_path }}/{{ processexp_data_dir }}', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+    - { path: '{{ app_path }}/{{ telegrambot_data_dir }}', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+  tags:
+    - make_dirs
+    - prom
+
+- name: Make Node-exporter data subdir
+  file:
+    path: "{{ item.path }}"
+    state: directory
+    mode: "{{ item.mode }}"
+    owner: "{{ item.user }}"
+  with_items:
+    - { path: '{{ app_path }}/{{ nodeexp_data_dir }}', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+  when: "'node_exporter' in group_names"
+  tags:
+    - make_dirs
+    - node_exporter
+
+- name: Make Cadvisor data subdir
+  file:
+    path: "{{ app_path }}/{{ cadvisor_data_dir }}"
+    state: directory
+    mode: '0775'
+    owner: "{{ svc_user }}"
+  when: "'cadvisor' in group_names"
+  tags:
+    - make_dirs
+    - cadvisor
+
+- name: Make Mesh data subdir
+  file:
+    path: "{{ item.path }}"
+    state: directory
+    mode: "{{ item.mode }}"
+    owner: "{{ item.user }}"
+  with_items:
+    - { path: '{{ app_path }}/{{ mesh_data_dir }}', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+  when: "'mesh_single' in group_names or 'mesh_cluster' in group_names"
+  tags:
+    - make_dirs
+    - mesh
+
+- name: Make folders for Grafana
+  file:
+    path: "{{ app_path }}/{{ grafana_data_dir }}/{{ item.path }}"
+    state: directory
+    mode: "{{ item.mode }}"
+    owner: "{{ item.user }}"
+  with_items:
+    - { path: 'dashboards', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+    - { path: 'datasources', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+    - { path: 'plugins', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+  when: "'grafana' in group_names"
+  tags:
+    - make_dirs
+
+- name: Make subdir for imported dashboard
+  file:
+    path: "{{ playbook_dir }}/imported-dashboards"
+    state: directory
+    mode: '0775'
+    owner: root
+  delegate_to: localhost
+  tags:
+    - make_dirs
+
+- name: Copy Postgres-exporter files
+  copy:
+    src: "{{ item.src }}"
+    dest: "{{ app_path }}/{{ item.dest }}"
+    mode: "{{ item.mode }}"
+    owner: "{{ item.user }}"
+#    group: "{{ item.group }}"
+  with_items:
+    - { src: 'queries.yaml', dest: '{{ pg_data_dir }}/queries.yaml', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+  when: "'postgres_exporter' in group_names"
+  tags:
+    - copy_files
+
+- name: Copy Grafana files
+  copy:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    mode: "{{ item.mode }}"
+    owner: "{{ item.user }}"
+#    group: "{{ item.group }}"
+  with_items:
+#    - { src: 'all.yml', dest: '{{ app_path }}/{{ grafana_data_dir }}/dashboards/all.yml', group: 'docker', user: '{{ svc_user }}', mode: '0644' }
+#    - { src: 'grafana-piechart-panel.zip', dest: '/tmp/grafana-piechart-panel.zip', group: 'docker', user: '{{ svc_user }}', mode: '0644' }
+    - { src: 'yq_linux_amd64', dest: '/usr/bin/yq', group: 'docker', user: 'root', mode: '0775' }
+  when: "'grafana' in group_names"
+  tags:
+    - grafana_copy_files
+    - grafana
+
+- name: Copy files for Telegram bot
+  copy:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    mode: "{{ item.mode }}"
+    owner: "{{ item.user }}"
+#    group: "{{ item.group }}"
+  with_items:
+    - { src: 'template.tmpl', dest: '{{ app_path }}/{{ telegrambot_data_dir }}/template.tmpl', group: 'docker', user: '{{ svc_user }}', mode: '0644' }
+  when: "'alertmanager' in group_names"
+  tags:
+    - deploy_bot_tempates
+    - alertmanager
+
+- name: Unarchive a file with plugin(s) for Grafana
+  unarchive:
+    src: "/tmp/grafana-piechart-panel.zip"
+    dest: "{{ app_path }}/{{ grafana_data_dir }}/plugins/"
+    remote_src: yes
+  when: "'grafana' in group_names"
+  tags:
+    - grafana
+
+- name: Copy files for build docker image with consul/curl
+  copy:
+    src: "{{ item.src }}"
+    dest: "{{ app_path }}/{{ item.dest }}"
+    mode: "{{ item.mode }}"
+    owner: "{{ item.user }}"
+  with_items:
+    - { src: 'entrypoint.sh', dest: '{{ consul_data_dir }}/entrypoint.sh', group: 'docker', user: '{{ svc_user }}', mode: '0755' }
+    - { src: 'consul_reg.sh', dest: '{{ consul_data_dir }}/consul_reg.sh', group: 'docker', user: '{{ svc_user }}', mode: '0755' }
+  when: "'consul' in group_names and 'consul_is_ready' not in group_names"
+  tags:
+    - consul
+
+- name: Copy managed scripts/files
+  copy:
+    src: "{{ item.src }}"
+    dest: "{{ app_path }}/{{ item.dest }}"
+    mode: "{{ item.mode }}"
+    owner: "{{ item.user }}"
+#    group: "{{ item.group }}"
+  with_items:
+    - { src: 'down', dest: 'down', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+    - { src: 'logs', dest: 'logs', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+    - { src: 'rst', dest: 'rst', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+    - { src: 'up', dest: 'up', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+  tags:
+    - copy_files
+
+- name: Deploy Prometheus templates
+  template:
+    src: "{{ item.src }}"
+    dest: "{{ app_path }}/{{ item.dest }}"
+    mode: "{{ item.mode }}"
+    owner: "{{ item.user }}"
+#    group: "{{ item.group }}"
+  with_items:
+    - { src: 'alert.rules.j2', dest: '{{ prom_data_dir }}/alert.rules', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+    - { src: 'prometheus_consul.yml.j2', dest: '{{ prom_data_dir }}/prometheus.yml', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+    - { src: 'prom_web.yml.j2', dest: '{{ prom_data_dir }}/web.yml', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+  when: "'prometheus' in group_names"
+  tags:
+    - deploy_prom_templates
+    - prom
+
+- name: Deploy Node-exporter templates
+  template:
+    src: "{{ item.src }}"
+    dest: "{{ app_path }}/{{ item.dest }}"
+    mode: "{{ item.mode }}"
+    owner: "{{ item.user }}"
+#    group: "{{ item.group }}"
+  with_items:
+    - { src: 'node_web.yml.j2', dest: '{{ nodeexp_data_dir }}/web-config.yml', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+  when: "'node_exporter' in group_names"
+  tags:
+    - deploy_nodeexp_templates
+    - node_exporter
+
+- name: Add authentication to the Cadvisor web UI
+  htpasswd:
+    path: "{{ app_path }}/{{ cadvisor_data_dir }}/web.htpasswd"
+    name: "{{ cadvisor_user }}"
+    password: "{{ cadvisor_passwd }}"
+  when: "'cadvisor' in group_names"
+  tags:
+    - deploy_cadvisor_templates
+    - cadvisor
+
+- name: Deploy file_sd_configs templates (for spring-micrometer)
+  template:
+    src: springmicrometer.yml.j2
+    dest: "{{ app_path }}/{{ prom_data_dir }}/sd/springmicrometer.yml"
+    mode: '0775'
+    owner: "{{ svc_user }}"
+  when: "'prometheus' in group_names and 'springmicrometer' in groups"
+  tags:
+    - deploy_prom_templates
+    - prom
+    - springmicrometer
+
+- name: Deploy file_sd_configs templates (for spring-micrometer with basic auth)
+  template:
+    src: springmicrometerauth.yml.j2
+    dest: "{{ app_path }}/{{ prom_data_dir }}/sd/springmicrometerauth.yml"
+    mode: '0775'
+    owner: "{{ svc_user }}"
+  when: "'prometheus' in group_names and 'springmicrometer_basic_auth' in groups"
+  tags:
+    - deploy_prom_templates
+    - prom
+    - springmicrometer
+
+- name: Deploy Alertmanager templates
+  template:
+    src: "{{ item.src }}"
+    dest: "{{ app_path }}/{{ item.dest }}"
+    mode: "{{ item.mode }}"
+    owner: "{{ item.user }}"
+#    group: "{{ item.group }}"
+  with_items:
+    - { src: 'telegram_config.yaml.j2', dest: '{{ telegrambot_data_dir }}/config.yaml', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+    - { src: 'alertmanager_config.yml.j2', dest: '{{ alertmng_data_dir }}/config.yml', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+  when: "'alertmanager' in group_names"
+  tags:
+    - deploy_alertmng_temlpates
+    - alertmanager
+
+- name: Deploy Blackbox templates
+  template:
+    src: "{{ item.src }}"
+    dest: "{{ app_path }}/{{ item.dest }}"
+    mode: "{{ item.mode }}"
+    owner: "{{ item.user }}"
+#    group: "{{ item.group }}"
+  with_items:
+    - { src: 'bb_config.yml.j2', dest: '{{ bb_data_dir }}/config.yml', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+  when: "'blackbox' in group_names"
+  tags:
+    - deploy_bb_templates
+    - bb
+
+- name: Deploy Blackbox sd files (file_sd_configs for blackbox)
+  template:
+    src: "{{ item.src }}"
+    dest: "{{ app_path }}/{{ item.dest }}"
+    mode: "{{ item.mode }}"
+    owner: "{{ item.user }}"
+#    group: "{{ item.group }}"
+  with_items:
+    - { src: 'http_2xx.yml.j2', dest: '{{ prom_data_dir }}/sd/http_2xx.yml', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+    - { src: 'https_2xx.yml.j2', dest: '{{ prom_data_dir }}/sd/https_2xx.yml', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+    - { src: 'http_302.yml.j2', dest: '{{ prom_data_dir  }}/sd/http_302.yml', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+    - { src: 'http_401.yml.j2', dest: '{{ prom_data_dir  }}/sd/http_401.yml', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+  when: "'blackbox' in group_names"
+  tags:
+    - deploy_bb_templates
+    - bb
+
+- name: Deploy Mesh script getMeshStatusSingle.sh
+  template:
+    src: getMeshStatusSingle.sh.j2
+    dest: "{{ app_path }}/{{ mesh_data_dir }}/getMeshStatusSingle.sh"
+    mode: "0775"
+    owner: "{{ svc_user }}"
+  when: "'mesh_single' in group_names"
+  tags:
+    - deploy_mesh_templates
+    - mesh
+
+- name: Add getMeshStatusSingle.sh to /etc/crontab
+  lineinfile:
+    dest: /etc/crontab
+    line: "*/1 * * * * root {{ app_path }}/{{ mesh_data_dir }}/getMeshStatusSingle.sh >/dev/null 2>&1"
+  notify: restart crond
+  when: "'mesh_single' in group_names"
+  tags:
+    - deploy_mesh_templates
+    - mesh
+
+- name: Deploy Nginx templates
+  template:
+    src: "{{ item.src }}"
+    dest: "{{ app_path }}/{{ item.dest }}"
+    mode: "{{ item.mode }}"
+    owner: "{{ item.user }}"
+#    group: "{{ item.group }}"
+  with_items:
+    - { src: 'vm.conf.j2', dest: '{{ nginx_data_dir }}/vm.conf', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+  when: "'nginx' in group_names"
+  tags:
+    - deploy_nginx_templates
+    - nginx
+
+- name: Deploy Grafana templates
+  template:
+    src: "{{ item.src }}"
+    dest: "{{ app_path }}/{{ item.dest }}"
+    mode: "{{ item.mode }}"
+    owner: "{{ item.user }}"
+#    group: "{{ item.group }}"
+  with_items:
+    - { src: 'ds.yml.j2', dest: '{{ grafana_data_dir }}/datasources/ds.yml', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+  when: "'grafana' in group_names"
+  tags:
+    - deploy_gf_templates
+    - grafana   
+
+- name: Deploy NginxLog-exporter templates
+  template:
+    src: "{{ item.src }}"
+    dest: "{{ app_path }}/{{ item.dest }}"
+    mode: "{{ item.mode }}"
+    owner: "{{ item.user }}"
+#    group: "{{ item.group }}"
+  with_items:
+    - { src: 'prometheus-nginxlog-exporter.yml.j2', dest: '{{ nginxlog_data_dir }}/prometheus-nginxlog-exporter.yml', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+  when: "'nginxlog' in group_names"
+  tags:
+    - deploy_nginxlog_templates
+    - nginx_exp
+
+- name: Deploy Karma templates
+  template:
+    src: "{{ item.src }}"
+    dest: "{{ app_path }}/{{ item.dest }}"
+    mode: "{{ item.mode }}"
+    owner: "{{ item.user }}"
+#    group: "{{ item.group }}"
+  with_items:
+    - { src: 'karma.yaml.j2', dest: '{{ karma_data_dir }}/karma.yaml', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+    - { src: 'acls.yaml.j2', dest: '{{ karma_data_dir }}/acls.yaml', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+  when: "'karma' in group_names"
+  tags:
+    - deploy_karma_templates
+    - karma
+
+- name: Deploy Process-exporter templates
+  template:
+    src: "{{ item.src }}"
+    dest: "{{ app_path }}/{{ item.dest }}"
+    mode: "{{ item.mode }}"
+    owner: "{{ item.user }}"
+#    group: "{{ item.group }}"
+  with_items:
+    - { src: 'process-exporter.yml.j2', dest: '{{ processexp_data_dir }}/process-exporter.yml', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+  when: "'node_exporter' in group_names"
+  tags:
+    - deploy_procexp_templates
+    - proc_exp
+
+- name: Deploy Consul templates if Consul-cluster does not exist
+  template:
+    src: "{{ item.src }}"
+    dest: "{{ app_path }}/{{ item.dest }}"
+    mode: "{{ item.mode }}"
+    owner: "{{ item.user }}"
+  with_items:
+    - { src: 'reg_services.json.j2', dest: '{{ consul_data_dir }}/services.json', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+    - { src: 'consul_config.json.j2', dest: '{{ consul_data_dir }}/config.json', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+    - { src: 'Dockerfile.j2', dest: '{{ consul_data_dir }}/Dockerfile', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+    - { src: 'agent-policy.hcl.j2', dest: '{{ consul_data_dir }}/agent-policy.hcl', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+  when: "'consul' in group_names and 'consul_is_ready' not in group_names"
+  tags:
+    - deploy_consul_templates
+    - consul
+    - prom
+
+- name: Deploy Consul templates to add to existing Consul-cluster
+  template:
+    src: "{{ item.src }}"
+    dest: "{{ app_path }}/{{ item.dest }}"
+    mode: "{{ item.mode }}"
+    owner: "{{ item.user }}"
+  with_items:
+    - { src: 'reg_services.json.j2', dest: '{{ consul_data_dir }}/services.json', group: 'docker', user: '{{ svc_user }}', mode: '0775' }
+  when: "'consul_is_ready' in group_names"
+  tags:
+    - deploy_consul_templates
+    - consul
+    - prom
+
+- name: Install docker module
+  pip:
+    name: docker
+    state: present
+  when: "'consul' in group_names or 'cadvisor' in group_names"
+  tags:
+    - dc_deploy_templates
+    - consul
+    - prom
+
+#- name: Build an image Curl for Consul
+#  docker_image:
+#    build:
+#      path: "{{ app_path }}/{{ consul_data_dir }}"
+#    source: build
+#    name: "{{ docker['docker_reg_curl'] }}/curl"
+#    tag: "{{ docker['curl_ver'] }}"
+#    state: present
+#    pull: yes
+#  when: "'consul' in group_names"
+#  tags:
+#    - dc_deploy_templates
+#    - consul
+
+- name: Get info about docker
+  docker_host_info:
+  register: result
+#  ignore_errors: yes
+  when: "'cadvisor' in group_names"
+  tags:
+    - dc_deploy_templates
+
+- set_fact:
+    dockerRootDir: '{{ result.host_info }}'
+#  ignore_errors: yes
+  when: "'cadvisor' in group_names"
+  tags:
+    - dc_deploy_templates
+
+- name: Deploy docker_compose.yml
+  template:
+    src:  docker-compose.yaml.j2
+    dest: "{{ app_path }}/docker-compose.yaml"
+    owner: "{{ svc_user }}"
+    group: docker
+    mode: '0664'
+#  when: "'consul' not in group_names and 'consul_is_ready' not in group_names"
+  tags:
+    - dc_deploy_templates
