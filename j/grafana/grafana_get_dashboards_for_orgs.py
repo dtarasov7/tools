@@ -8,8 +8,8 @@ import requests
 import time
 import glob
 
-api_list = ["eyJrIjoiN1QzVkFTOVpxcnByS3BpcWZJWGViT3JKMU9nNlJDR08iLCJuIjoiZXhwb3J0X2ltcG9ydF9kYXNoYm9hcmRzIiwiaWQiOjF9" "eyJrIjoiOTBUTExDYXJSZzZqOEY5TXhyZHdYMndUY091azF2SlQiLCJuIjoiZXhwb3J0X2ltcG9ydF9kYXNoYm9hcmRzIiwiaWQiOjJ9" "eyJrIjoiRmpxaEs2dEozSkR6a3VnMDNobWE0VUZTZzBqMG5tNFUiLCJuIjoiZXhwb3J0X2ltcG9ydF9kYXNoYm9hcmRzIiwiaWQiOjR9" "eyJrIjoiR1pGWGxxUERXN2VXVGZHT1hCZVdrb1dTc0R1WlI4RXYiLCJuIjoiZXhwb3J0X2ltcG9ydF9kYXNoYm9hcmRzIiwiaWQiOjN9" "eyJrIjoiV0dPclV5QlNrb1QzdUxHTGhEaEc3aDNhaENpT1liSWUiLCJuIjoiZXhwb3J0X2ltcG9ydF9kYXNoYm9hcmRzIiwiaWQiOjV9" "eyJrIjoiQjVnQTdUN3BSUjcwaDJ5MnZBMEJXaEFVS1FESzVlRlciLCJuIjoiZXhwb3J0X2ltcG9ydF9kYXNoYm9hcmRzIiwiaWQiOjZ9" "eyJrIjoiVUZxeE96ZnJWNklpT2RkOGsxbWV3WWUzZnRJdG5KN1UiLCJuIjoiZXhwb3J0X2ltcG9ydF9kYXNoYm9hcmRzIiwiaWQiOjh9" "eyJrIjoiS2hPY2tpUVFjc3hNMEFlQWhWQU5WOHkzRlZFc1RUcGEiLCJuIjoiZXhwb3J0X2ltcG9ydF9kYXNoYm9hcmRzIiwiaWQiOjd9"]
-grafana_location = "10.80.252.20:3000"
+api_list = ["eyJrIjoiN1QzVk" "eQiOjJ9" "eyJrIj" "iwiaWQiOjN9" "eyJrIjiOjV9" "eyJOjZ9" "eiOjh9" "eyJrIj"]
+grafana_location = "10.8:3000"
 backup_dir = "/data/minio/grafana/prod_dtln"
 zip_date = time.strftime("%Y-%m-%d-%H:%M")
 
