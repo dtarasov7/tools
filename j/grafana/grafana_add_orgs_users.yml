@@ -6,7 +6,7 @@
 #grafana_users:
 #  - name: user-00
 #    password: sedov-ap
-#    OrgId: Main%20Org%2E
+#    OrgId: Main%20O
 #    role: Editor
 #    isGrafanaAdmin: false
 #  - name: user-11
