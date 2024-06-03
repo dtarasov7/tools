@@ -4,12 +4,12 @@ HOST='http://10.:3000'
 DASH_DIR=/data/minio/grafana/prod_dtln
 
 # Declare a list with the api keys using as a prefix the organization name plus "_" character
-declare -a StringArray=("main_eyJrF9" "adm" "svozIiwiaWQiOjR9" "cosQiOjN9" "digWQiOjV9" "ndbIiwiaWQiOjZ9" "dit-d9ydF9kYXNo" "lt-dtln_eyJrIjoi")
+declare -a StringArray=("" "" "" "" )
 
 # Iterate through api keys:
-for API_KEY in "${StringArray[@]}"; do
-    ORG=$(echo $API_KEY | cut -d "_" -f1) # Name of the organization based on the prefix
-    KEY=$(echo $API_KEY | cut -d "_" -f2) # API Key for that organization after removing the prefix
+for PI_KEY in "${StringArray[@]}"; do
+    ORG=$(echo $PI_KEY | cut -d "_" -f1) # Name of the organization based on the prefix
+    KEY=$(echo $PI_KEY | cut -d "_" -f2) # API Key for that organization after removing the prefix
 
     # Iterate through dashboards using the current API Key
     for dashboard_uid in $(curl -sS -H "Authorization: Bearer $KEY" $HOST/api/search\?query\=\& | jq -r '.[] | select( .type | contains("dash-db")) | .uid'); do
