@@ -1,0 +1,7 @@
+readarray identityMappings < <(yq -o=j -I=0 '.identities[]' test.yml )
+
+for identityMapping in "${identityMappings[@]}"; do
+    # identity mapping is a single json snippet representing a single entry
+    roleArn=$(echo "$identityMapping" | yq '.arn' -)
+    echo "roleArn: $roleArn"
+done
