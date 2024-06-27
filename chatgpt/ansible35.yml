@@ -1,0 +1,179 @@
+Используя Ansible для работы с API Grafana и выполнения описанных операций согласно YAML структуре, вот как может выглядеть playbook. Для работы с API Grafana в Ansible можно использовать модуль `uri`. В данном случае, мы будем использовать этот модуль для выполнения POST запросов к API Grafana.
+
+Пример playbook для создания организаций, datasource, пользователей и загрузки дашбордов:
+
+```yaml
+---
+- name: Setup Grafana Organizations, Datasources, Users, and Dashboards
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    grafana_url: "https://your-grafana-server.com"  # Замените на адрес вашего Grafana сервера
+    admin_user: "admin"  # Имя пользователя администратора Grafana
+    admin_password: "admin_password"  # Пароль администратора Grafana
+    api_keys_file: "api_keys.txt"  # Файл для сохранения API ключей
+
+  tasks:
+    - name: Read YAML configuration
+      ansible.builtin.include_vars:
+        file: "config.yaml"
+      register: config
+
+    - name: Create organizations, datasources, users, and dashboards
+      ansible.builtin.block:
+        - name: Loop through organizations
+          ansible.builtin.debug:
+            msg: "Processing organization {{ item.name }}"
+          loop: "{{ config.organizations }}"
+          loop_control:
+            loop_var: item
+
+        - name: Create organization
+          ansible.builtin.uri:
+            url: "{{ grafana_url }}/api/orgs"
+            method: POST
+            headers:
+              Content-Type: "application/json"
+            body_format: json
+            body:
+              name: "{{ item.name }}"
+            user: "{{ admin_user }}"
+            password: "{{ admin_password }}"
+            status_code: 200
+          register: org_response
+
+        - name: Get API key for the organization
+          ansible.builtin.uri:
+            url: "{{ grafana_url }}/api/auth/keys"
+            method: POST
+            headers:
+              Content-Type: "application/json"
+            body_format: json
+            body:
+              name: "API key for {{ item.name }}"
+              role: "Admin"
+              orgId: "{{ org_response.json.id }}"
+            user: "{{ admin_user }}"
+            password: "{{ admin_password }}"
+            status_code: 200
+          register: api_key_response
+
+          # Save API key to a file
+          - ansible.builtin.lineinfile:
+              line: "API key for {{ item.name }}: {{ api_key_response.json.key }}"
+              path: "{{ api_keys_file }}"
+            delegate_to: localhost
+
+        - name: Create datasources for the organization
+          ansible.builtin.debug:
+            msg: "Creating datasource {{ ds.name }} for organization {{ item.name }}"
+          loop: "{{ item.datasources }}"
+          loop_control:
+            loop_var: ds
+          ansible.builtin.uri:
+            url: "{{ grafana_url }}/api/datasources"
+            method: POST
+            headers:
+              Content-Type: "application/json"
+              Authorization: "Bearer {{ api_key_response.json.key }}"
+            body_format: json
+            body:
+              name: "{{ ds.name }}"
+              type: "prometheus"
+              url: "{{ ds.path }}"
+              orgId: "{{ org_response.json.id }}"
+            status_code: 200
+            user: "{{ admin_user }}"
+            password: "{{ admin_password }}"
+
+        - name: Create users for the organization
+          ansible.builtin.debug:
+            msg: "Creating user {{ user.name }} with role {{ user.role }} for organization {{ item.name }}"
+          loop: "{{ item.users }}"
+          loop_control:
+            loop_var: user
+          ansible.builtin.uri:
+            url: "{{ grafana_url }}/api/admin/users"
+            method: POST
+            headers:
+              Content-Type: "application/json"
+              Authorization: "Bearer {{ api_key_response.json.key }}"
+            body_format: json
+            body:
+              name: "{{ user.name }}"
+              email: "{{ user.name }}@{{ org_response.json.id }}.com"
+              login: "{{ user.name }}"
+              password: "password"
+            status_code: 200
+            user: "{{ admin_user }}"
+            password: "{{ admin_password }}"
+
+          # Assign role to the user
+          - ansible.builtin.uri:
+              url: "{{ grafana_url }}/api/orgs/{{ org_response.json.id }}/users"
+              method: POST
+              headers:
+                Content-Type: "application/json"
+                Authorization: "Bearer {{ api_key_response.json.key }}"
+              body_format: json
+              body:
+                role: "{{ user.role }}"
+              status_code: 200
+              user: "{{ admin_user }}"
+              password: "{{ admin_password }}"
+            loop: "{{ item.users }}"
+            loop_control:
+              loop_var: user
+
+        - name: Upload dashboards for the organization
+          ansible.builtin.debug:
+            msg: "Uploading dashboards for organization {{ item.name }}"
+          loop: "{{ item.dashboard_groups }}"
+          loop_control:
+            loop_var: group
+          ansible.builtin.debug:
+            msg: "Uploading dashboards for dashboard group {{ group.name }}"
+          loop: "{{ group.dashboards }}"
+          loop_control:
+            loop_var: dashboard
+          ansible.builtin.uri:
+            url: "{{ grafana_url }}/api/dashboards/db"
+            method: POST
+            headers:
+              Content-Type: "application/json"
+              Authorization: "Bearer {{ api_key_response.json.key }}"
+            body_format: json
+            body:
+              "{{ lookup('file', dashboard.file) | from_json }}"
+            status_code: 200
+            user: "{{ admin_user }}"
+            password: "{{ admin_password }}"
+
+      # Используем только один хост - localhost для выполнения всех задач
+      delegate_to: localhost
+```
+
+### Объяснение playbook:
+
+1. **Чтение YAML файла**: playbook начинает с чтения YAML файла `config.yaml`, который содержит информацию об организациях, datasource, пользователях и дашбордах.
+
+2. **Создание организаций**: Для каждой организации выполняется POST запрос к API Grafana для создания организации.
+
+3. **Получение API ключа**: После создания организации, playbook выполняет запрос для создания API ключа для данной организации.
+
+4. **Создание datasource**: Для каждого datasource, указанного в `config.yaml`, выполняется запрос на создание источника данных в Grafana.
+
+5. **Создание пользователей**: Для каждого пользователя, указанного в `config.yaml`, создается пользователь в Grafana и назначается указанная роль.
+
+6. **Загрузка дашбордов**: Дашборды, указанные в `config.yaml`, загружаются в Grafana. Если имя дашборда указано с использованием шаблона (`*.json`), playbook загружает все соответствующие дашборды.
+
+7. **Сохранение API ключей**: API ключи сохраняются в файл `api_keys.txt` для дальнейшего использования или проверки.
+
+### Примечания:
+
+- Перед запуском убедитесь, что у вас установлен Ansible и версия соответствует 2.11.
+- Для работы с API Grafana используется модуль `ansible.builtin.uri`.
+- Настройте `grafana_url`, `admin_user` и `admin_password` в переменных playbook для вашего окружения.
+- Убедитесь, что конфигурационный файл `config.yaml` корректно отформатирован и содержит необходимые данные для создания организаций, datasource, пользователей и загрузки дашбордов в Grafana.

@@ -1,0 +1,172 @@
+Вот Ansible Playbook, который выполняет те же задачи, что и Bash скрипт. Playbook использует Ansible для взаимодействия с API Grafana и настраивает организации, источники данных, пользователей и дашборды, как указано в файле YAML.
+
+```yaml
+---
+- name: Sync Grafana configuration
+  hosts: grafana
+  gather_facts: no
+  vars:
+    admin_user: "admin"
+    admin_password: "admin"
+    grafana_url: "http://localhost:3000"
+    config_file: "/path/to/grafana_config.yaml"
+    api_keys_file: "/path/to/api_keys.yaml"
+    log_file: "/path/to/grafana_sync.log"
+
+  tasks:
+    - name: Ensure jq is installed
+      ansible.builtin.package:
+        name: jq
+        state: present
+
+    - name: Ensure yq is installed
+      ansible.builtin.package:
+        name: python3-yq
+        state: present
+
+    - name: Fetch Grafana API token
+      uri:
+        url: "{{ grafana_url }}/api/auth/login"
+        method: POST
+        body_format: json
+        headers:
+          Content-Type: "application/json"
+        body:
+          user: "{{ admin_user }}"
+          password: "{{ admin_password }}"
+        return_content: yes
+      register: auth_response
+
+    - name: Set Grafana API token
+      set_fact:
+        grafana_api_token: "{{ auth_response.json.auth.token }}"
+
+    - name: Fail if token not acquired
+      fail:
+        msg: "Failed to get Grafana API token."
+      when: grafana_api_token is not defined or grafana_api_token == "null"
+
+    - name: Log token acquired
+      local_action:
+        ansible.builtin.lineinfile:
+          path: "{{ log_file }}"
+          line: "{{ ansible_date_time.iso8601 }} - Grafana API token acquired."
+      delegate_to: localhost
+
+    - name: Fetch current organizations
+      uri:
+        url: "{{ grafana_url }}/api/orgs"
+        headers:
+          Authorization: "Bearer {{ grafana_api_token }}"
+          Content-Type: "application/json"
+        return_content: yes
+      register: current_orgs
+
+    - name: Parse Grafana configuration
+      community.general.from_yaml:
+        src: "{{ config_file }}"
+      register: grafana_config
+
+    - name: Create or update organizations
+      block:
+        - name: Create or update organization
+          uri:
+            url: "{{ grafana_url }}/api/orgs"
+            method: POST
+            headers:
+              Authorization: "Bearer {{ grafana_api_token }}"
+              Content-Type: "application/json"
+            body_format: json
+            body: "{{ item }}"
+            status_code: 200, 201
+          loop: "{{ grafana_config.organizations | map(attribute='name') | list }}"
+          register: create_orgs_response
+
+        - name: Create API key for organization
+          uri:
+            url: "{{ grafana_url }}/api/auth/keys"
+            method: POST
+            headers:
+              Authorization: "Bearer {{ grafana_api_token }}"
+              Content-Type: "application/json"
+            body_format: json
+            body: '{"name": "orgapikey", "role": "Admin", "orgId": "{{ item.id }}"}'
+          with_items: "{{ create_orgs_response.results }}"
+          register: api_keys_response
+          when: item.id is not defined
+
+        - name: Save API keys to file
+          local_action:
+            ansible.builtin.lineinfile:
+              path: "{{ api_keys_file }}"
+              create: yes
+              line: '  - name: "{{ item.organization }}"\n    id: "{{ item.id }}"\n    key_name: "orgapikey"\n    key: "{{ item.key }}"'
+          loop: "{{ api_keys_response.results }}"
+          delegate_to: localhost
+
+    - name: Create or update datasources
+      uri:
+        url: "{{ grafana_url }}/api/datasources"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ grafana_api_token }}"
+          Content-Type: "application/json"
+        body_format: json
+        body: "{{ item }}"
+      loop: "{{ grafana_config.organizations | map(attribute='datasources') | list | flatten(1) }}"
+
+    - name: Create or update users
+      uri:
+        url: "{{ grafana_url }}/api/orgs/{{ item.org_id }}/users"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ grafana_api_token }}"
+          Content-Type: "application/json"
+        body_format: json
+        body: "{{ item }}"
+      loop: "{{ grafana_config.organizations | map(attribute='users') | list | flatten(1) }}"
+
+    - name: Create or update dashboards
+      block:
+        - name: Create folder for dashboard group
+          uri:
+            url: "{{ grafana_url }}/api/folders"
+            method: POST
+            headers:
+              Authorization: "Bearer {{ grafana_api_token }}"
+              Content-Type: "application/json"
+            body_format: json
+            body: '{"title": "{{ item.group_name }}"}'
+          with_items: "{{ grafana_config.organizations | map(attribute='dashboard_groups') | list | flatten(1) }}"
+          register: folder_response
+
+        - name: Upload dashboards to folder
+          uri:
+            url: "{{ grafana_url }}/api/dashboards/db"
+            method: POST
+            headers:
+              Authorization: "Bearer {{ grafana_api_token }}"
+              Content-Type: "application/json"
+            body_format: json
+            body: "{{ lookup('file', item.file) | from_yaml | combine({'folderUid': item.folder_uid, 'overwrite': true}) }}"
+          with_items: "{{ grafana_config.organizations | map(attribute='dashboard_groups') | list | flatten(1) | selectattr('dashboards', 'defined') | map(attribute='dashboards') | list | flatten(1) }}"
+
+    - name: Log synchronization completed
+      local_action:
+        ansible.builtin.lineinfile:
+          path: "{{ log_file }}"
+          line: "{{ ansible_date_time.iso8601 }} - Grafana synchronization completed."
+      delegate_to: localhost
+```
+
+Этот playbook выполняет следующие действия:
+
+1. Устанавливает необходимые пакеты (`jq` и `yq`).
+2. Получает API токен для аутентификации в Grafana.
+3. Загружает текущие организации из Grafana.
+4. Парсит конфигурационный файл YAML.
+5. Создает или обновляет организации, источники данных, пользователей и дашборды в Grafana.
+6. Создает API ключи для организаций и сохраняет их в файл.
+7. Логирует все действия в файл.
+
+Вы можете настроить переменные в начале playbook (`admin_user`, `admin_password`, `grafana_url`, `config_file`, `api_keys_file` и `log_file`) в соответствии с вашими требованиями.

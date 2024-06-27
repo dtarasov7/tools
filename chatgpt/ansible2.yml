@@ -1,0 +1,290 @@
+ онечно, вот Ansible playbook, который выполн€ет те же функции, что и ваш скрипт. ѕервый вариант будет использовать вызовы API, второй будет использовать специализированные модули Ansible.
+
+### ¬ариант 1: »спользование вызовов API
+
+#### Playbook
+
+```yaml
+---
+- name: Setup Grafana organizations, datasources, and users using API
+  hosts: localhost
+  gather_facts: no
+  vars:
+    grafana_url: "http://localhost:3000"
+    admin_user: "admin"
+    admin_password: "admin_password"
+    api_keys_file: "api_keys.txt"
+    organizations:
+      - name: organization_1
+        datasources:
+          - name: datasource_11
+            path: https://server11:9090
+          - name: datasource_12
+            path: https://server12:9090
+        users:
+          - name: user11
+            role: viewer
+      - name: organization_2
+        datasources:
+          - name: datasource_21
+            path: https://server21:9090
+          - name: datasource_22
+            path: https://server22:9090
+        users:
+          - name: user21
+            role: editor
+
+  tasks:
+    - name: Get session token
+      uri:
+        url: "{{ grafana_url }}/api/auth/login"
+        method: POST
+        headers:
+          Content-Type: "application/json"
+        body_format: json
+        body:
+          user: "{{ admin_user }}"
+          password: "{{ admin_password }}"
+        status_code: 200
+      register: login_response
+
+    - name: Set session token fact
+      set_fact:
+        session_token: "{{ login_response.json.token }}"
+
+    - name: Create organizations
+      uri:
+        url: "{{ grafana_url }}/api/orgs"
+        method: POST
+        headers:
+          Content-Type: "application/json"
+          Authorization: "Bearer {{ session_token }}"
+        body_format: json
+        body:
+          name: "{{ item.name }}"
+      loop: "{{ organizations }}"
+      register: create_org_response
+
+    - name: Get organization IDs
+      uri:
+        url: "{{ grafana_url }}/api/orgs"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ session_token }}"
+        status_code: 200
+      register: orgs_response
+
+    - name: Create datasources and users
+      block:
+        - name: Get organization ID
+          set_fact:
+            org_id: "{{ orgs_response.json | selectattr('name', 'equalto', item.name) | map(attribute='id') | first }}"
+
+        - name: Create datasources
+          uri:
+            url: "{{ grafana_url }}/api/datasources"
+            method: POST
+            headers:
+              Content-Type: "application/json"
+              Authorization: "Bearer {{ session_token }}"
+              X-Grafana-Org-Id: "{{ org_id }}"
+            body_format: json
+            body:
+              name: "{{ ds.name }}"
+              type: "prometheus"
+              url: "{{ ds.path }}"
+              access: "proxy"
+              isDefault: false
+          loop: "{{ item.datasources }}"
+          loop_control:
+            loop_var: ds
+
+        - name: Create users
+          uri:
+            url: "{{ grafana_url }}/api/org/users"
+            method: POST
+            headers:
+              Content-Type: "application/json"
+              Authorization: "Bearer {{ session_token }}"
+              X-Grafana-Org-Id: "{{ org_id }}"
+            body_format: json
+            body:
+              name: "{{ user.name }}"
+              email: "{{ user.name }}@example.com"
+              login: "{{ user.name }}"
+              password: "password"
+              role: "{{ user.role }}"
+          loop: "{{ item.users }}"
+          loop_control:
+            loop_var: user
+
+        - name: Create API key
+          uri:
+            url: "{{ grafana_url }}/api/auth/keys"
+            method: POST
+            headers:
+              Content-Type: "application/json"
+              Authorization: "Bearer {{ session_token }}"
+              X-Grafana-Org-Id: "{{ org_id }}"
+            body_format: json
+            body:
+              name: "{{ item.name }}-api-key"
+              role: "Admin"
+          register: create_api_key_response
+
+        - name: Save API key to file
+          lineinfile:
+            path: "{{ api_keys_file }}"
+            line: "{{ item.name }}: {{ create_api_key_response.json.key }}"
+      loop: "{{ organizations }}"
+```
+
+### ¬ариант 2: »спользование специализированных модулей
+
+Ansible не имеет встроенных модулей дл€ управлени€ организаци€ми, источниками данных и пользовател€ми Grafana на версии 2.11. ќднако можно использовать модуль `grafana_datasource` из коллекции `community.grafana`, который может упростить работу с источниками данных.
+
+ƒл€ этого варианта потребуетс€ установить коллекцию `community.grafana`:
+
+```bash
+ansible-galaxy collection install community.grafana
+```
+
+#### Playbook
+
+```yaml
+---
+- name: Setup Grafana organizations, datasources, and users using specialized modules
+  hosts: localhost
+  gather_facts: no
+  vars:
+    grafana_url: "http://localhost:3000"
+    admin_user: "admin"
+    admin_password: "admin_password"
+    api_keys_file: "api_keys.txt"
+    organizations:
+      - name: organization_1
+        datasources:
+          - name: datasource_11
+            path: https://server11:9090
+          - name: datasource_12
+            path: https://server12:9090
+        users:
+          - name: user11
+            role: viewer
+      - name: organization_2
+        datasources:
+          - name: datasource_21
+            path: https://server21:9090
+          - name: datasource_22
+            path: https://server22:9090
+        users:
+          - name: user21
+            role: editor
+
+  tasks:
+    - name: Get session token
+      uri:
+        url: "{{ grafana_url }}/api/auth/login"
+        method: POST
+        headers:
+          Content-Type: "application/json"
+        body_format: json
+        body:
+          user: "{{ admin_user }}"
+          password: "{{ admin_password }}"
+        status_code: 200
+      register: login_response
+
+    - name: Set session token fact
+      set_fact:
+        session_token: "{{ login_response.json.token }}"
+
+    - name: Create organizations
+      uri:
+        url: "{{ grafana_url }}/api/orgs"
+        method: POST
+        headers:
+          Content-Type: "application/json"
+          Authorization: "Bearer {{ session_token }}"
+        body_format: json
+        body:
+          name: "{{ item.name }}"
+      loop: "{{ organizations }}"
+      register: create_org_response
+
+    - name: Get organization IDs
+      uri:
+        url: "{{ grafana_url }}/api/orgs"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ session_token }}"
+        status_code: 200
+      register: orgs_response
+
+    - name: Create datasources and users
+      block:
+        - name: Get organization ID
+          set_fact:
+            org_id: "{{ orgs_response.json | selectattr('name', 'equalto', item.name) | map(attribute='id') | first }}"
+
+        - name: Create datasources
+          community.grafana.grafana_datasource:
+            grafana_url: "{{ grafana_url }}"
+            grafana_api_key: "{{ session_token }}"
+            validate_certs: no
+            state: present
+            org_id: "{{ org_id }}"
+            datasource_name: "{{ ds.name }}"
+            datasource_type: "prometheus"
+            url: "{{ ds.path }}"
+          loop: "{{ item.datasources }}"
+          loop_control:
+            loop_var: ds
+
+        - name: Create users
+          uri:
+            url: "{{ grafana_url }}/api/org/users"
+            method: POST
+            headers:
+              Content-Type: "application/json"
+              Authorization: "Bearer {{ session_token }}"
+              X-Grafana-Org-Id: "{{ org_id }}"
+            body_format: json
+            body:
+              name: "{{ user.name }}"
+              email: "{{ user.name }}@example.com"
+              login: "{{ user.name }}"
+              password: "password"
+              role: "{{ user.role }}"
+          loop: "{{ item.users }}"
+          loop_control:
+            loop_var: user
+
+        - name: Create API key
+          uri:
+            url: "{{ grafana_url }}/api/auth/keys"
+            method: POST
+            headers:
+              Content-Type: "application/json"
+              Authorization: "Bearer {{ session_token }}"
+              X-Grafana-Org-Id: "{{ org_id }}"
+            body_format: json
+            body:
+              name: "{{ item.name }}-api-key"
+              role: "Admin"
+          register: create_api_key_response
+
+        - name: Save API key to file
+          lineinfile:
+            path: "{{ api_keys_file }}"
+            line: "{{ item.name }}: {{ create_api_key_response.json.key }}"
+      loop: "{{ organizations }}"
+```
+
+### ѕримечани€:
+
+1. ”бедитесь, что у вас установлены необходимые зависимости (`jq` и `yq`).
+2. Ansible playbook первого варианта использует пр€мые вызовы API дл€ взаимодействи€ с Grafana.
+3. Ansible playbook второго варианта использует модуль `community.grafana.grafana_datasource` дл€ работы с источниками данных, но дл€ создани€ организаций и пользователей все равно используютс€ вызовы API, так как специализированные модули дл€ этих действий отсутствуют в Ansible 2.11.
+
+«апустите playbook, указав путь к

@@ -1,0 +1,81 @@
+
+В файле в формате yaml описано целевое состояние grafana - организации и так же входящие в эти организации datasource, пользователи с их ролями и 
+дашборды. причем дашборды разбиты на группы дашбордов.
+
+Пример файла 
+
+organizations:
+  - name: organization_1
+    datasources:
+      - name: datasource_11
+        path: https://server11:9090
+      - name: datasource_12
+        path: https://server12:9090
+    users:
+      - name: user11
+        role: viewer
+    dashboard_folders:
+      - name: dasboard_folder_1_1
+        dasboards:
+          - file: path1/dashboard*.json
+          - file: path2/dashboard1_2.json
+      - name: dasboard_folder_1_2
+        dasboards:
+          - file: dashboard2_3.json
+          - file: dashboard2_4.json
+
+  - name: organization_2
+    datasources:
+      - name: datasource_21
+        path: https://server21:9090
+      - name: datasource_22
+        path: https://server22:9090
+    users:
+      - name: user21
+        role: editor
+    dashboard_folders:
+      - name: dasboard_folder_2_1
+        dasboards:
+          - file: dashboard2_1.json
+          - file: dashboard2_2.json
+
+
+
+
+Напиши код на bash, который парсит такой yaml файл, и приводит конфигурацию grafana в соответствие с информацией в файле. Если объект есть в файле, но его нет 
+в grafana, то объект создается. Если объект есть в grafane, но его нет в файле, то объект удаляется.
+
+При создании организации , генериться api_key с именем orgapikey, который в дальнейшем используется для загрузки дашбордов именно в эту организацию. Сгенереные api_keys
+сохраняются в файл api_keys.yaml формате
+
+api_keys:
+ - name: имя организации
+   id: id организации
+   kay_name: имя api-key
+   key: значение api_key
+
+дашборды должны быть загружены в соотвествующие folder.
+
+Если организация уже есть, то api_key читается из файла api_keys.yaml .
+
+Все действия (удаление/создание) и все ошибки логируются в текстовый файл. Каждая строка лога должна содержать время и дату
+
+Все вызовы api grafana проверяются на ошибки. В случае ошибки скрипт после записи в лог информации об ошибке, останавливается
+
+
+
+
+создай пожалуйста ansible palybook, выполняющее то же самое что и bash скрипт. ansible  2.11.
+файл с api_key располагается на localhost.
+grafana расположена на удаленном узле
+
+
+
+ grafana.yml
+
+
+Если организация 
+
+создает указанные в нем  организации, получает для созданных организаций api_key, создает требуемые datasource , users и загружает дашборды... То есть источник информации - yaml файл.
+
+Модифицируй скрипт , чтобы при создании организации использовалься username и password, а после создания каждой организации генерился API_KEY

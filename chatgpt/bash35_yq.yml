@@ -1,0 +1,134 @@
+Для замены `yaml2json` на `yq` в скрипте на Bash для обработки YAML файла и создания организаций, datasource, пользователей и загрузки дашбордов в Grafana, следует внести следующие изменения. `yq` представляет собой инструмент командной строки, который позволяет обрабатывать YAML файлы напрямую. Вот модифицированный скрипт:
+
+```bash
+#!/bin/bash
+
+# Функция для создания организации в Grafana
+function create_organization {
+    local org_name="$1"
+
+    # Создаем организацию и получаем ее ID
+    local response=$(curl -s -X POST \
+        -H "Content-Type: application/json" \
+        -d "{\"name\": \"$org_name\"}" \
+        "$GRAFANA_URL/api/orgs")
+
+    local org_id=$(echo "$response" | jq -r '.id')
+
+    echo "$org_id"
+}
+
+# Функция для создания источника данных (datasource) в Grafana
+function create_datasource {
+    local org_id="$1"
+    local ds_name="$2"
+    local ds_url="$3"
+    local api_key="$4"
+
+    # Создаем источник данных
+    curl -s -X POST \
+        -H "Content-Type: application/json" \
+        -H "Authorization: Bearer $api_key" \
+        -d "{\"name\": \"$ds_name\", \"type\": \"prometheus\", \"url\": \"$ds_url\", \"orgId\": $org_id}" \
+        "$GRAFANA_URL/api/datasources"
+}
+
+# Функция для создания пользователя в Grafana
+function create_user {
+    local org_id="$1"
+    local username="$2"
+    local role="$3"
+    local api_key="$4"
+
+    # Создаем пользователя
+    curl -s -X POST \
+        -H "Content-Type: application/json" \
+        -H "Authorization: Bearer $api_key" \
+        -d "{\"name\": \"$username\", \"email\": \"$username@$org_id.com\", \"login\": \"$username\", \"password\": \"password\"}" \
+        "$GRAFANA_URL/api/admin/users"
+
+    # Назначаем роль пользователю
+    curl -s -X POST \
+        -H "Content-Type: application/json" \
+        -H "Authorization: Bearer $api_key" \
+        -d "{\"role\": \"$role\"}" \
+        "$GRAFANA_URL/api/orgs/$org_id/users"
+}
+
+# Функция для загрузки дашбордов в Grafana
+function upload_dashboards {
+    local org_id="$1"
+    local group_name="$2"
+    local dashboard_file="$3"
+    local api_key="$4"
+
+    # Загружаем дашборды
+    curl -s -X POST \
+        -H "Content-Type: application/json" \
+        -H "Authorization: Bearer $api_key" \
+        -d "@$dashboard_file" \
+        "$GRAFANA_URL/api/dashboards/db"
+}
+
+# Основной скрипт
+# Чтение и обработка YAML файла с помощью yq
+if [[ -f "config.yaml" ]]; then
+    organizations=$(yq e '.organizations | keys[]' config.yaml)
+
+    for org in $organizations; do
+        org_name=$(yq e ".organizations[$org].name" config.yaml)
+
+        # Создаем организацию и получаем ее ID
+        org_id=$(create_organization "$org_name")
+
+        # Получаем API ключ для созданной организации
+        api_key=$(curl -s -X POST \
+            -H "Content-Type: application/json" \
+            -d "{\"name\": \"API key for $org_name\", \"role\": \"Admin\", \"orgId\": $org_id}" \
+            "$GRAFANA_URL/api/auth/keys" | jq -r '.key')
+
+        # Создаем источники данных для организации
+        datasources=$(yq e ".organizations[$org].datasources | length" config.yaml)
+        for (( i=0; i < datasources; i++ )); do
+            ds_name=$(yq e ".organizations[$org].datasources[$i].name" config.yaml)
+            ds_path=$(yq e ".organizations[$org].datasources[$i].path" config.yaml)
+            create_datasource "$org_id" "$ds_name" "$ds_path" "$api_key"
+        done
+
+        # Создаем пользователей для организации
+        users=$(yq e ".organizations[$org].users | length" config.yaml)
+        for (( i=0; i < users; i++ )); do
+            username=$(yq e ".organizations[$org].users[$i].name" config.yaml)
+            role=$(yq e ".organizations[$org].users[$i].role" config.yaml)
+            create_user "$org_id" "$username" "$role" "$api_key"
+        done
+
+        # Загружаем дашборды для организации
+        dashboard_groups=$(yq e ".organizations[$org].dashboard_groups | length" config.yaml)
+        for (( i=0; i < dashboard_groups; i++ )); do
+            group_name=$(yq e ".organizations[$org].dashboard_groups[$i].name" config.yaml)
+            dashboards=$(yq e ".organizations[$org].dashboard_groups[$i].dashboards | length" config.yaml)
+            for (( j=0; j < dashboards; j++ )); do
+                dashboard_file=$(yq e ".organizations[$org].dashboard_groups[$i].dashboards[$j].file" config.yaml)
+                upload_dashboards "$org_id" "$group_name" "$dashboard_file" "$api_key"
+            done
+        done
+
+        # Сохраняем API ключ в файле (пример)
+        echo "API key for $org_name: $api_key" >> api_keys.txt
+    done
+else
+    echo "Файл config.yaml не найден."
+fi
+```
+
+### Объяснение изменений:
+
+- `yq e '.organizations | keys[]' config.yaml`: Эта команда используется для извлечения ключей массива `organizations` из YAML файла.
+- `yq e ".organizations[$org].name" config.yaml`: Используется для извлечения имени организации из YAML файла.
+- Остальные части скрипта остались без изменений относительно предыдущего варианта.
+
+### Примечания:
+
+- Убедитесь, что у вас установлен `yq`. Вы можете установить его, выполнив `sudo apt-get install yq` на Ubuntu или используя другой метод установки для вашей операционной системы.
+- Этот скрипт предполагает, что у вас есть настроенный Grafana сервер и корректно настроенные права доступа для выполнения операций создания организаций, источников данных, пользователей и загрузки дашбордов через API.

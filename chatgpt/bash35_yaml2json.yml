@@ -1,0 +1,141 @@
+Для выполнения данной задачи на Bash нужно реализовать скрипт, который будет парсить YAML файл, создавать организации в Grafana, получать API ключи для каждой организации, создавать источники данных (datasources), пользователей (users) и загружать дашборды в соответствии с указанными в YAML файле настройками.
+
+Пример скрипта на Bash, который выполняет эти операции:
+
+```bash
+#!/bin/bash
+
+# Функция для создания организации в Grafana
+function create_organization {
+    local org_name="$1"
+
+    # Создаем организацию и получаем ее ID
+    local response=$(curl -s -X POST \
+        -H "Content-Type: application/json" \
+        -d "{\"name\": \"$org_name\"}" \
+        "$GRAFANA_URL/api/orgs")
+
+    local org_id=$(echo "$response" | jq -r '.id')
+
+    echo "$org_id"
+}
+
+# Функция для создания источника данных (datasource) в Grafana
+function create_datasource {
+    local org_id="$1"
+    local ds_name="$2"
+    local ds_url="$3"
+    local api_key="$4"
+
+    # Создаем источник данных
+    curl -s -X POST \
+        -H "Content-Type: application/json" \
+        -H "Authorization: Bearer $api_key" \
+        -d "{\"name\": \"$ds_name\", \"type\": \"prometheus\", \"url\": \"$ds_url\", \"orgId\": $org_id}" \
+        "$GRAFANA_URL/api/datasources"
+}
+
+# Функция для создания пользователя в Grafana
+function create_user {
+    local org_id="$1"
+    local username="$2"
+    local role="$3"
+    local api_key="$4"
+
+    # Создаем пользователя
+    curl -s -X POST \
+        -H "Content-Type: application/json" \
+        -H "Authorization: Bearer $api_key" \
+        -d "{\"name\": \"$username\", \"email\": \"$username@$org_id.com\", \"login\": \"$username\", \"password\": \"password\"}" \
+        "$GRAFANA_URL/api/admin/users"
+
+    # Назначаем роль пользователю
+    curl -s -X POST \
+        -H "Content-Type: application/json" \
+        -H "Authorization: Bearer $api_key" \
+        -d "{\"role\": \"$role\"}" \
+        "$GRAFANA_URL/api/orgs/$org_id/users"
+}
+
+# Функция для загрузки дашбордов в Grafana
+function upload_dashboards {
+    local org_id="$1"
+    local group_name="$2"
+    local dashboard_file="$3"
+    local api_key="$4"
+
+    # Загружаем дашборды
+    curl -s -X POST \
+        -H "Content-Type: application/json" \
+        -H "Authorization: Bearer $api_key" \
+        -d "@$dashboard_file" \
+        "$GRAFANA_URL/api/dashboards/db"
+}
+
+# Основной скрипт
+# Здесь должна быть логика для чтения YAML файла и выполнения вышеперечисленных функций
+
+# Пример чтения YAML файла и выполнения операций
+if [[ -f "config.yaml" ]]; then
+    organizations=$(yaml2json < config.yaml | jq -c '.organizations[]')
+
+    for org in $organizations; do
+        org_name=$(echo "$org" | jq -r '.name')
+
+        # Создаем организацию и получаем ее ID
+        org_id=$(create_organization "$org_name")
+
+        # Получаем API ключ для созданной организации
+        api_key=$(curl -s -X POST \
+            -H "Content-Type: application/json" \
+            -d "{\"name\": \"API key for $org_name\", \"role\": \"Admin\", \"orgId\": $org_id}" \
+            "$GRAFANA_URL/api/auth/keys" | jq -r '.key')
+
+        # Создаем источники данных для организации
+        datasources=$(echo "$org" | jq -c '.datasources[]')
+        for ds in $datasources; do
+            ds_name=$(echo "$ds" | jq -r '.name')
+            ds_path=$(echo "$ds" | jq -r '.path')
+            create_datasource "$org_id" "$ds_name" "$ds_path" "$api_key"
+        done
+
+        # Создаем пользователей для организации
+        users=$(echo "$org" | jq -c '.users[]')
+        for user in $users; do
+            username=$(echo "$user" | jq -r '.name')
+            role=$(echo "$user" | jq -r '.role')
+            create_user "$org_id" "$username" "$role" "$api_key"
+        done
+
+        # Загружаем дашборды для организации
+        dashboard_groups=$(echo "$org" | jq -c '.dashboard_groups[]')
+        for group in $dashboard_groups; do
+            group_name=$(echo "$group" | jq -r '.name')
+            dashboards=$(echo "$group" | jq -c '.dashboards[]')
+            for dashboard in $dashboards; do
+                dashboard_file=$(echo "$dashboard" | jq -r '.file')
+                upload_dashboards "$org_id" "$group_name" "$dashboard_file" "$api_key"
+            done
+        done
+
+        # Сохраняем API ключ в файле (пример)
+        echo "API key for $org_name: $api_key" >> api_keys.txt
+    done
+else
+    echo "Файл config.yaml не найден."
+fi
+```
+
+### Объяснение:
+
+1. **create_organization**: Функция создает организацию в Grafana и возвращает ее ID.
+2. **create_datasource**: Функция создает источник данных (datasource) в Grafana для указанной организации.
+3. **create_user**: Функция создает пользователя в Grafana и назначает ему роль для указанной организации.
+4. **upload_dashboards**: Функция загружает дашборды в Grafana для указанной организации и группы дашбордов.
+5. В основном скрипте происходит чтение YAML файла (`config.yaml`), парсинг его с помощью `yaml2json` и `jq`, а затем выполнение операций для каждой организации, описанной в файле.
+
+### Примечания:
+
+- Вам нужно будет заменить `$GRAFANA_URL` на URL вашего Grafana сервера.
+- Этот скрипт предполагает, что у вас установлены утилиты `jq` и `yaml2json` для парсинга YAML файлов. Вы можете установить их с помощью пакетного менеджера вашей операционной системы (например, `sudo apt-get install jq` для Ubuntu).
+- Помните о безопасности при хранении API ключей и паролей.
