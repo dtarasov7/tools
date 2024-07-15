@@ -1,0 +1,105 @@
+Дмитрий Тарасов, [13.07.2024 17:54]
+https://denisitpro.wordpress.com/2023/04/09/consul-acl-configure/
+
+Дмитрий Тарасов, [13.07.2024 18:09]
+https://github.com/kubernetes/perf-tests/blob/master/dns/cluster/prometheus.yaml
+metric_port
+
+Дмитрий Тарасов, [13.07.2024 18:12]
+__meta_consul_metadata_<key>
+
+Дмитрий Тарасов, [14.07.2024 9:22]
+https://heiioncall.com/guides/the-art-of-metric-relabeling-in-prometheus
+
+Дмитрий Тарасов, [14.07.2024 9:48]
+https://www.robustperception.io/finding-consul-services-to-monitor-with-prometheus/
+
+https://www.robustperception.io/relabel_configs-vs-metric_relabel_configs/
+
+Дмитрий Тарасов, [14.07.2024 10:14]
+сервис должен содержать тег, указывающий на язык  - 
+java, go, python, dotnet, node. чтобы забирать из этого сервиса инфра метрики и отображать в правильном дашборде
+
+Дмитрий Тарасов, [14.07.2024 10:36]
+1 ms -> n replic
+ms name -> consul: service name
+ms replic (name or number) -> consul: service id
+ms prog_lang -> consul tag :lang
+ms env -> consul tag :env
+consul srv name -> prmt job
+consul srv id -> prmt repl
+consul tag :lang -> prmt lang
+consul tag :env ->prmt env
+
+Дмитрий Тарасов, [14.07.2024 10:50]
+https://grafana.com/grafana/dashboards/6725-prometheus-benchmark-2-3-x/
+
+Дмитрий Тарасов, [14.07.2024 10:51]
+https://grafana.com/grafana/dashboards/9761-prometheus-benchmark-2-7-x/
+
+Дмитрий Тарасов, [14.07.2024 11:16]
+https://valyala.medium.com/analyzing-prometheus-data-with-external-tools-5f3e5e147639
+
+Дмитрий Тарасов, [14.07.2024 11:19]
+Считать кол-во метрик получааемых по каждому таргету и строить гафик. Отслеживать ситуацию, кодга сервис отдает слишком много метрик
+
+Дмитрий Тарасов, [14.07.2024 11:19]
+Разаработать технолгия  отключения сккейпинга конкретного таргета ( в случае с  consul sd)
+
+Дмитрий Тарасов, [14.07.2024 11:20]
+Prometheus adds an unique instance label per each scraped target according to these docs.
+Prometheus provides an ability to select time series matching the given series selector. 
+For example, the following series selector selects time series containing {instance="1.2.3.4:56"} label, 
+e.g. all the time series obtained from the target with the given instance label.
+Prometheus provides the /api/v1/series endpoint, which returns time series matching the provided match[] series selector.
+So, if you need obtaining all the time series from a particular target my-target, you can issue the following request to /api/v1/series:
+
+curl 'http://prometheus:9090/api/v1/series?match[]={instance="my-target"}'
+If you need obtaining metrics from the my-target at the given timestamp, then issue the query with the series selector to /api/v1/query:
+
+curl 'http://prometheus:9090/api/v1/query?query={instance="my-target"}&time=needed-timestamp'
+If you need obtaining all the raw samples from the my-target on the given time range 
+(end_timestamp+d ... end_timestamp], then use the following query:
+
+curl 'http://prometheus:9090/api/v1/query?query={instance="my-target"}[d]&time=end_timestamp'
+See these docs for details on how to read raw samples from Prometheus.
+
+If you need obtaining all the metrics / series from all the targets, then just use the following series selector: {name!=""}
+
+See also /api/v1/query_range - this endpoint is used by Grafana for building graphs from
+
+Дмитрий Тарасов, [14.07.2024 11:22]
+Number of series per target:
+
+sort_desc(count by(instance) ({name!=""}))
+
+https://promlabs.com/blog/2020/12/17/promql-queries-for-exploring-your-metrics/
+
+Дмитрий Тарасов, [14.07.2024 11:23]
+https://promlens.com/
+
+Дмитрий Тарасов, [14.07.2024 11:40]
+https://promlabs.com/blog/2022/12/11/avoid-these-6-mistakes-when-getting-started-with-prometheus/
+
+Дмитрий Тарасов, [14.07.2024 11:47]
+scrape duration для каждого таргета - графики
+
+Дмитрий Тарасов, [14.07.2024 11:49]
+Yes, you can use the scrape_duration_seconds metric.
+
+Then you can run queries in the Prometheus query box like:
+
+scrape_duration_seconds{instance="localhost:9100", job="node"}[5m]
+or use Grafana.
+
+To count the (incremented) number of scrapes served by the exporter, I believe what you want is the promhttp_metric_handler_requests_total metric. The metric is returned multiple times along with resulting HTTP status code: 200, 500, 503, possibly others. Successful scrapes have code 200. Other status codes will typically show a count of zero.
+
+If you are only interested in counting successful scrapes, you could do something like this:
+
+promhttp_metric_handler_requests_total{instance="localhost:9100", job="node", code="200"}
+Share
+Improve this answer
+Follow
+
+Дмитрий Тарасов, [15.07.2024 7:47]
+один дашборд -один репозиторий. Версии протегированы.
