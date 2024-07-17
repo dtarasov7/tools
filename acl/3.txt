@@ -1,0 +1,125 @@
+Для создания токена, который позволяет читать информацию об узлах и сервисах через UI Consul, за исключением узлов и сервисов на которых работает Consul Server, нужно выполнить следующие шаги:
+
+### 1. Создание ACL Policy для чтения информации об узлах и сервисах, исключая Consul Server
+
+**policy-ui-read-clients.hcl:**
+```hcl
+# policy-ui-read-clients.hcl
+# Policy to allow read access to Consul clients only
+
+# Allow read access to client nodes
+node {
+  policy = "read"
+}
+
+# Deny access to nodes with name matching "consul-server-*"
+node_prefix "consul-server-" {
+  policy = "deny"
+}
+
+# Allow read access to all services
+service {
+  policy = "read"
+}
+
+# Deny access to services registered on nodes with name matching "consul-server-*"
+service_prefix "" {
+  policy = "read"
+  rules = <<EOF
+agent {
+  check "serfHealth" {
+    policy = "deny"
+  }
+}
+EOF
+}
+```
+
+### 2. Применение ACL Policy
+
+Загрузите политику в Consul:
+
+```bash
+consul acl policy create -name ui-read-clients -rules @policy-ui-read-clients.hcl
+```
+
+### 3. Создание ACL Token для UI
+
+**token-ui-read-clients.hcl:**
+```hcl
+# token-ui-read-clients.hcl
+description = "Token for UI to read information about client nodes and services"
+policies = [
+  {
+    name = "ui-read-clients"
+  }
+]
+```
+
+### 4. Применение ACL Token
+
+Загрузите токен в Consul:
+
+```bash
+consul acl token create -config-file=token-ui-read-clients.hcl
+```
+
+Эта команда создаст токен и вернет его вам. Сохраните этот токен, так как он понадобится для настройки доступа к UI Consul.
+
+### 5. Пример команд для создания токена
+
+Вот последовательность команд, которые нужно выполнить:
+
+```bash
+# Создание файла policy-ui-read-clients.hcl
+cat <<EOF > policy-ui-read-clients.hcl
+# policy-ui-read-clients.hcl
+# Policy to allow read access to Consul clients only
+
+# Allow read access to client nodes
+node {
+  policy = "read"
+}
+
+# Deny access to nodes with name matching "consul-server-*"
+node_prefix "consul-server-" {
+  policy = "deny"
+}
+
+# Allow read access to all services
+service {
+  policy = "read"
+}
+
+# Deny access to services registered on nodes with name matching "consul-server-*"
+service_prefix "" {
+  policy = "read"
+  rules = <<EOF
+agent {
+  check "serfHealth" {
+    policy = "deny"
+  }
+}
+EOF
+}
+EOF
+
+# Применение политики
+consul acl policy create -name ui-read-clients -rules @policy-ui-read-clients.hcl
+
+# Создание файла token-ui-read-clients.hcl
+cat <<EOF > token-ui-read-clients.hcl
+# token-ui-read-clients.hcl
+description = "Token for UI to read information about client nodes and services"
+policies = [
+  {
+    name = "ui-read-clients"
+  }
+]
+EOF
+
+# Применение токена
+consul acl token create -config-file=token-ui-read-clients.hcl
+```
+
+Теперь у вас есть токен, который позволяет читать информацию об узлах и сервисах через UI Consul, исключая узлы и сервисы, зарегистрированные на Consul Server.

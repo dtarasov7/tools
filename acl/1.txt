@@ -1,0 +1,136 @@
+приложение app может читать информацию только об экземплярах сервисов app
+приложение prog может читать информацию только об экземплярах сервисов prog
+приложение app может регистрировать только сервис с именем srv-app .
+приложение app может зарегистрировать сервис, только если запущено на узлах с именами host-app*
+приложение prog может регистрировать только сервис с именем srv-prog
+приложение app может зарегистрировать сервис, только если запущено на узлах с именами host-prog*
+
+Есть сервис с именем prog, запущеный в нескольких экземплярах.
+Есть сервис с именем app, запущеный в нескольких экземплярах.
+Есть consul кластер , развернутый на узлах cn1, cn2, cn3
+Версия consul 1.10
+В кластере включен ACL
+Приведи hcl файлы для создания токена, который позволит сервисам регистрироваться в кластере и читать информацию о зарегистрированных сервисах.
+
+
+Для выполнения дополнительных требований, вам нужно будет создать две отдельные ACL политики и токены, по одному для каждого типа сервиса (`app` и `prog`). Эти политики будут включать ограничения на чтение информации только о своих собственных сервисах и регистрацию сервисов только с определенными именами на определенных узлах.
+
+### 1. Создание ACL Policy для `app`
+
+**policy-app.hcl:**
+```hcl
+# policy-app.hcl
+# Policy to allow 'app' to register 'srv-app' service on 'host-app*' nodes and read 'app' services
+
+# Allow the agent to register 'srv-app' service on 'host-app*' nodes
+agent "host-app*" {
+  policy = "write"
+}
+
+# Allow read access only to 'app' services
+service "app" {
+  policy = "read"
+}
+
+# Allow 'app' to register only 'srv-app' service
+service "srv-app" {
+  policy = "write"
+}
+```
+
+### 2. Создание ACL Policy для `prog`
+
+**policy-prog.hcl:**
+```hcl
+# policy-prog.hcl
+# Policy to allow 'prog' to register 'srv-prog' service on 'host-prog*' nodes and read 'prog' services
+
+# Allow the agent to register 'srv-prog' service on 'host-prog*' nodes
+agent "host-prog*" {
+  policy = "write"
+}
+
+# Allow read access only to 'prog' services
+service "prog" {
+  policy = "read"
+}
+
+# Allow 'prog' to register only 'srv-prog' service
+service "srv-prog" {
+  policy = "write"
+}
+```
+
+### 3. Применение ACL Policies
+
+Загрузите политики в Consul:
+
+```bash
+consul acl policy create -name app-register-read -rules @policy-app.hcl
+consul acl policy create -name prog-register-read -rules @policy-prog.hcl
+```
+
+### 4. Создание ACL Token для `app`
+
+**token-app.hcl:**
+```hcl
+# token-app.hcl
+description = "Token for app registration and app read access"
+policies = [
+  {
+    name = "app-register-read"
+  }
+]
+```
+
+### 5. Создание ACL Token для `prog`
+
+**token-prog.hcl:**
+```hcl
+# token-prog.hcl
+description = "Token for prog registration and prog read access"
+policies = [
+  {
+    name = "prog-register-read"
+  }
+]
+```
+
+### 6. Применение ACL Tokens
+
+Загрузите токены в Consul:
+
+```bash
+consul acl token create -config-file=token-app.hcl
+consul acl token create -config-file=token-prog.hcl
+```
+
+### 7. Конфигурация сервисов
+
+Используйте созданные токены в конфигурации ваших сервисов `app` и `prog`. Обычно это делается через переменные окружения или конфигурационные файлы.
+
+Пример использования токена через переменные окружения в `systemd`:
+
+**/etc/systemd/system/app.service:**
+```ini
+[Service]
+Environment="CONSUL_HTTP_TOKEN=<your-app-token>"
+...
+```
+
+**/etc/systemd/system/prog.service:**
+```ini
+[Service]
+Environment="CONSUL_HTTP_TOKEN=<your-prog-token>"
+...
+```
+
+Не забудьте перезапустить сервисы после обновления конфигурации:
+
+```bash
+systemctl daemon-reload
+systemctl restart app
+systemctl restart prog
+```
+
+Теперь ваши сервисы `app` и `prog` смогут регистрироваться в Consul только на разрешенных узлах с разрешенными именами сервисов, а также смогут читать информацию только о своих собственных сервисах.

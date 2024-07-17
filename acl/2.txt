@@ -1,0 +1,86 @@
+Для создания токена, который позволит читать информацию о нодах и сервисах через UI Consul, вам нужно создать соответствующую ACL политику и затем создать токен, используя эту политику.
+
+### 1. Создание ACL Policy для чтения информации о нодах и сервисах
+
+**policy-read-ui.hcl:**
+```hcl
+# policy-read-ui.hcl
+# Policy to allow read access to nodes and services
+
+node_prefix "" {
+  policy = "read"
+}
+
+service_prefix "" {
+  policy = "read"
+}
+
+agent_prefix "" {
+  policy = "read"
+}
+```
+
+### 2. Применение ACL Policy
+
+Загрузите политику в Consul:
+
+```bash
+consul acl policy create -name read-ui -rules @policy-read-ui.hcl
+```
+
+### 3. Создание ACL Token для чтения через UI
+
+**token-read-ui.hcl:**
+```hcl
+# token-read-ui.hcl
+description = "Token for read access to nodes and services through UI"
+policies = [
+  {
+    name = "read-ui"
+  }
+]
+```
+
+### 4. Применение ACL Token
+
+Загрузите токен в Consul:
+
+```bash
+consul acl token create -config-file=token-read-ui.hcl
+```
+
+Эта команда создаст токен и вернет его вам. Сохраните этот токен, так как он понадобится для конфигурации Consul UI.
+
+### 5. Настройка Consul UI для использования токена
+
+Чтобы использовать созданный токен для доступа через UI, вам нужно указать этот токен в настройках UI. Это можно сделать, добавив токен в файл конфигурации Consul или используя переменные окружения.
+
+#### Пример использования переменной окружения:
+
+Запустите Consul UI с токеном:
+
+```bash
+export CONSUL_HTTP_TOKEN=<your-read-ui-token>
+consul agent -ui -config-dir=/path/to/config
+```
+
+#### Пример использования файла конфигурации:
+
+**ui-config.json:**
+```json
+{
+  "acl": {
+    "tokens": {
+      "default": "<your-read-ui-token>"
+    }
+  }
+}
+```
+
+Запустите Consul с указанием файла конфигурации:
+
+```bash
+consul agent -ui -config-file=ui-config.json
+```
+
+Теперь Consul UI будет использовать созданный токен, что позволит вам читать информацию о нодах и сервисах.
