@@ -1,0 +1,2 @@
+- name: int 1
+  debug: var=int

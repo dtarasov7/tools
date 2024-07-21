@@ -1,0 +1,36 @@
+---
+- name: text 2 loop
+  gather_facts: false
+  hosts: localhost
+  vars:
+    test:
+      - name: 1
+        par: 1-2
+        pol:
+         - name: pol_1_1
+           rule: "pol 1_1"
+         - name: pol_1_2
+           rule: "pol 1_2"
+      - name: 2
+        par: 2-2
+        pol:
+         - name: pol_2_1
+           rule: "pol 2_1"
+         - name: pol_2_2
+           rule: "pol 2_2"
+         - name: pol_2_3
+           rule: "pol 2_3"
+
+  tasks:
+
+    - name: main loop
+      ansible.builtin.include_tasks:
+        file: ext_loop.yml
+      loop: "{{ test }}"
+      register: main_l
+      loop_control:
+        loop_var: ext
+        index_var: idx
+
+#    - debug: var=main_l
+

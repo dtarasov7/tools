@@ -1,0 +1,30 @@
+- name: ext 1 number={{ idx }}
+  debug: var=ext.pol
+
+- name: ext 2 number={{ idx }}
+  debug: var=ext.par
+
+- name: loop to int number={{ idx }}
+  ansible.builtin.include_tasks:
+    file: int_loop.yml
+  loop: "{{ ext.pol }}"
+  register: ext_loop
+  loop_control:
+    loop_var: int
+
+#- debug: var=ext_loop
+
+#- name: d loop
+#  debug:
+#    msg: "{{ item }}"
+#  loop: "{{ ext_loop.results }}"
+
+#- name: d2 loop
+#  debug:
+#    msg: "{{ item.int.name }}"
+#  loop: "{{ ext_loop.results }}"
+
+- name: echo
+  shell:
+    cmd: "echo xxx {% for r in ext_loop.results %} -p={{ r.int.name }} {% endfor %}"
+
