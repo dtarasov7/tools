@@ -1,0 +1,12 @@
+{
+    "alert": "VolumeAttachmentNoPod",
+    "annotations": {
+        "description": "{{ $labels.volumename }} remains attached to {{ $labels.node }} despite no pod existing",
+        "summary": "Volume Attachment still exists despite pod not existing"
+    },    
+    "expr": "kube_volumeattachment_spec_source_persistentvolume * on (volumeattachment) group_left (node) kube_volumeattachment_info * on (volumename) group_left (namespace, persistentvolumeclaim) kube_persistentvolumeclaim_info{volumename!=''} unless on (namespace, persistentvolumeclaim) (kube_pod_spec_volumes_persistentvolumeclaims_info)",
+    "for": "15m",
+    "labels": {
+        "severity": "critical"
+    }
+}

@@ -1,0 +1,12 @@
+{
+    "alert": "VolumeAttachmentNoPVC",
+    "annotations": {
+        "description": "Volume attachment still exists for {{ $labels.volumename }} on {{ $labels.node }} despite the pvc no longer existing",
+        "summary": "Volume attachment remaining for deleted pvc"
+    },    
+    "expr": "kube_volumeattachment_spec_source_persistentvolume * on (volumeattachment) group_left (node) kube_volumeattachment_info unless on(volumename) kube_persistentvolumeclaim_info",
+    "for": "15m",
+    "labels": {
+        "severity": "critical"
+    }
+}

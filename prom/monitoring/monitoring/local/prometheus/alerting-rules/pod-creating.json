@@ -1,0 +1,12 @@
+{
+    "alert": "PodCreating",
+    "annotations": {
+        "description": "{{ $labels.namespace }}/{{ $labels.pod }}/{{ $labels.container }} stuck ContainerCreating on {{ $labels.node }} for over an hour",
+        "summary": "Pod stuck creating"
+    },    
+    "expr": "kube_pod_container_status_waiting_reason{reason='ContainerCreating'} * on (namespace, pod) group_left(node) (kube_pod_info)",
+    "for": "1h",
+    "labels": {
+        "severity": "critical"
+    }
+}

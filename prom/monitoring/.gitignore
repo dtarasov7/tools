@@ -1,0 +1,5 @@
+monitoring/vendor
+monitoring/manifests
+monitoring/jsonnetfile*
+rules.jsonnet
+*.DS_Store

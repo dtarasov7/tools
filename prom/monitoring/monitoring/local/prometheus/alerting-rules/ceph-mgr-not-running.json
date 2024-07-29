@@ -1,0 +1,12 @@
+{
+    "alert": "CephMgrNotRunning",
+    "annotations": {
+        "description": "{{ $labels.namespace }} has a broken ceph mgr pod",
+        "summary": "Broken ceph mgr pod"
+    },
+    "expr": "kube_pod_status_phase{pod=~'rook-ceph-mgr.*', phase='Running'} != 1",
+    "for": "15m",
+    "labels": {
+        "severity": "critical"
+    }
+}

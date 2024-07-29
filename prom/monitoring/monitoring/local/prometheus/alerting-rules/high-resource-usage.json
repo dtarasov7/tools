@@ -1,0 +1,12 @@
+{
+    "alert": "HighResourceUsage",
+    "annotations": {
+        "description": "{{ $labels.namespace }} has claimed {{ $value | humanizePercentage }} of {{ $labels.resource }} cluster resources",
+        "summary": "High amount of requested resources from a single namespace"
+    },
+    "expr": "(sum by (namespace, resource) (namespace_allocated_resources) / on(resource) group_left sum by (resource) (kube_node_status_capacity)) > (30/100)",
+    "for": "15m",
+    "labels": {
+        "severity": "critical"
+    }
+}

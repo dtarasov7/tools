@@ -1,0 +1,70 @@
+stages:
+  - build-and-push
+  - generate
+  - deploy
+
+build-jsonnet:
+  stage: build-and-push
+  only:
+    changes:
+      - jsonnet/*
+  image: gcr.io/kaniko-project/executor:debug
+  script:
+  - cd jsonnet
+  - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
+  - /kaniko/executor --context $CI_PROJECT_DIR/jsonnet --dockerfile $CI_PROJECT_DIR/jsonnet/Dockerfile --destination $CI_REGISTRY_IMAGE/jsonnet:${CI_COMMIT_SHA:0:8} --destination $CI_REGISTRY_IMAGE/jsonnet:latest
+
+generate-monitoring:
+  stage: generate
+  image: gitlab-registry.nrp-nautilus.io/${CI_PROJECT_NAMESPACE}/${CI_PROJECT_NAME}/jsonnet
+  script:
+  - cd monitoring
+  - jb init
+  - jb install github.com/prometheus-operator/kube-prometheus/jsonnet/kube-prometheus@main
+  - mkdir manifests
+  - envsubst '${MATRIX_WEBHOOK_URL} ${GRAFANA_ADMIN_PASSWORD}' < rules.template.jsonnet > rules.jsonnet
+  - jsonnet -J vendor -m manifests ${1-rules.jsonnet} | xargs -I{} sh -c 'cat $1 | gojsontoyaml > $1.yaml; rm -f $1' -- {}
+  artifacts:
+    paths:
+    - monitoring/manifests
+    expire_in: 12 mos
+
+# deploy:
+#   only:
+#     refs:
+#       - master
+#     changes:
+#       - monitoring/rules.template.jsonnet
+#   stage: deploy
+#   image: bitnami/kubectl
+#   environment:
+#     name: production
+#   script:
+#     - kubectl apply -f $(ls -1 monitoring/manifests/alertmanager* | paste -sd "," -)
+#     - kubectl apply -f $(ls -1 monitoring/manifests/gpu* | paste -sd "," -)
+#     - kubectl apply -f $(ls -1 monitoring/manifests/grafana* | paste -sd "," -)
+#     - kubectl apply -f $(ls -1 monitoring/manifests/ipmi* | paste -sd "," -)
+#     - kubectl apply -f $(ls -1 monitoring/manifests/kube-state-metrics* | paste -sd "," -)
+#     - kubectl apply -f $(ls -1 monitoring/manifests/kubernetes* | paste -sd "," -)
+#     - kubectl apply -f $(ls -1 monitoring/manifests/node-exporter* | paste -sd "," -)
+#     - kubectl apply -f $(ls -1 monitoring/manifests/rgw* | paste -sd "," -)
+#     - kubectl apply -f $(ls -1 monitoring/manifests/rook* | paste -sd "," -)
+#     - kubectl apply -f $(ls -1 monitoring/manifests/traefik* | paste -sd "," -)
+
+    
+deploy-grafana:
+  only:
+    refs:
+      - master
+    changes:
+      - monitoring/local/**/*
+      - monitoring/rules.template.jsonnet
+  stage: deploy
+  image: bitnami/kubectl
+  environment:
+    name: production
+  script:
+    - kubectl apply --server-side=true -f $(ls -1 monitoring/manifests/grafana-dashboardDefinitions.yaml | paste -sd "," -)
+    - kubectl apply --server-side=true -f monitoring/manifests/grafana-dashboardSources.yaml
+    - kubectl apply --server-side=true -f monitoring/manifests/grafana-deployment.yaml
+    

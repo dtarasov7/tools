@@ -1,0 +1,13 @@
+
+{
+    "alert": "OSDOut",
+    "expr": "ceph_osd_up == 0",
+    "for": "3m",
+    "labels": {
+        "severity": "critical"
+    },
+    "annotations": {
+        "description": "Ceph OSD {{ $labels.ceph_daemon }} in cluster {{ $labels.namespace }} is offline",
+        "summary": "Ceph storage functioning properly"
+    }
+}

@@ -1,0 +1,12 @@
+{
+    "alert": "PodTerminating",
+    "annotations": {
+        "description": "{{ $labels.namespace }}/{{ $labels.pod }} stuck terminating on {{ $labels.node }} for over an hour",
+        "summary": "Pod stuck terminating"
+    },    
+    "expr": "count(kube_pod_deletion_timestamp) by (namespace, pod) * count(kube_pod_status_reason{reason='NodeLost'} == 0) by (namespace, pod) * on (namespace, pod) group_left (node) count(kube_pod_info) by (namespace, pod, node) * on(node) group_left kube_node_status_condition{condition='Ready', status='true'} == 1",
+    "for": "1h",
+    "labels": {
+        "severity": "critical"
+    }
+}
