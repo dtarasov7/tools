@@ -1,0 +1,21 @@
+https://gist.github.com/saurabh-hirani/e8cbc96844307a41ff4bc8aa8ebd7459
+
+curl -s -XGET "http://localhost:9200/index/_field_caps?fields=*" | jq '.fields|length'
+
+
+https://www.elastic.co/guide/en/elasticsearch/reference/master/mapping-settings-limit.html
+index.mapping.total_fields.ignore_dynamic_beyond_limit
+Этот параметр определяет, что произойдет, если динамически сопоставленное поле превысит общий лимит полей. Если установлено значение false(по умолчанию), запрос индекса документа, который пытается добавить динамическое поле в сопоставление, завершится ошибкой с сообщением Limit of total fields [X] has been exceeded. Если установлено значение true, запрос индекса не завершится ошибкой. Вместо этого поля, которые превысят лимит, не добавляются в сопоставление, аналогично dynamic: false. Поля, которые не были добавлены в сопоставление, будут добавлены в _ignoredполе . Значение по умолчанию — false.
+
+https://www.elastic.co/guide/en/elasticsearch/reference/master/dynamic-templates.html
+
+https://www.elastic.co/guide/en/elasticsearch/reference/current/flattened.html
+
+https://www.elastic.co/guide/en/elasticsearch/reference/current/field-usage-stats.html
+
+https://www.elastic.co/blog/3-ways-to-prevent-mapping-explosion-in-elasticsearch
+
+
+https://stackoverflow.com/questions/62127673/dynamic-templates-support-default-types
+
+https://sematext.com/blog/elasticsearch-reindex/
