@@ -1,0 +1,604 @@
+- name: Centos 7
+  set_fact:
+    OS: "C7"
+  when: hostvars[inventory_hostname].ansible_distribution_major_version|int == 7
+  tags: always
+
+- name: Centos 8
+  set_fact:
+    OS: "C8"
+  when: hostvars[inventory_hostname].ansible_distribution_major_version|int == 8 and hostvars[inventory_hostname].ansible_distribution != "OracleLinux"
+  tags: always
+
+- name: Oracle Linux  8
+  set_fact:
+    OS: "OLE8"
+  when: hostvars[inventory_hostname].ansible_distribution_major_version|int == 8 and hostvars[inventory_hostname].ansible_distribution == "OracleLinux"
+  tags: always
+
+- name: get service facts
+  service_facts:
+
+- name: debug
+  debug:
+    msg: "swp = {{ swapoff }}"
+  tags: swapoff
+  when: swapoff is defined
+
+- name: centos.yml - Disable SWAP (1/2)
+  shell: |
+    swapoff -a
+  tags: swapoff
+  when: swapoff is defined and swapoff
+
+- name: centos.yml - Disable SWAP in fstab  (2/2)
+  replace:
+    path: /etc/fstab
+#    regexp: '^([^#].*?\sswap\s+sw\s+.*)$'
+#    replace: '# \1'
+    regexp: '^(\s*)([^#\n]+\s+)(\w+\s+)swap(\s+.*)$'
+    replace: '#\1\2\3swap\4'
+    backup: yes
+  tags: swapoff
+  when: swapoff is defined and swapoff
+
+- name: centos.yml - disable firewalld service
+  service: name=firewalld state=stopped enabled=no
+  tags: firewalld
+  when: use_firewalld is not defined or ( use_firewalld is defined and not use_firewalld )
+
+- name: centos.yml - Enable firewalld
+  service: name=firewalld state=started enabled=yes
+  tags: firewalld
+  when: use_firewalld is defined and use_firewalld
+
+- name: centos.yml - Set public as default policy
+  command: firewall-cmd --set-default-zone=public
+  tags: firewalld
+  when: use_firewalld is defined and use_firewalld and allow_all_firewalld is defined
+
+- name: centos.yml - disable Firewalld ( allow all to public )
+  command: firewall-cmd --zone=public --permanent  --set-target=ACCEPT
+  notify: restart firewalld
+  tags: firewalld
+  when: use_firewalld is defined and use_firewalld and allow_all_firewalld is defined
+
+- name: centos.yml - Hostname | Update the hostname (pt. 1) - hostname cmd
+  hostname:
+    name: "{{inventory_hostname_short}}"
+  tags: hostname
+  when: set_hostname is defined
+
+- name: centos.yml - Hostname | Update the hostname (pt. 2) - (/etc/hostname)
+  copy:
+    content: "{{inventory_hostname_short}}{{'\n'}}"
+    dest: /etc/hostname
+    owner: root
+    group: root
+    mode: 0644
+  tags: hostname
+  when: set_hostname is defined
+
+- name: "Install yum-plugin-versionlock package"
+  yum: name=yum-plugin-versionlock state=latest
+  tags: yum
+
+- name: centos.yml - Hostname | Update the IPv4 hostname (pt. 3) - (/etc/hosts)
+  lineinfile:
+    dest: /etc/hosts
+    regexp: "^127.0.0.1"
+    line: "127.0.0.1{{'\t'}}{{inventory_hostname}}{% if inventory_hostname != inventory_hostname_short %}{{'\t'}}{{inventory_hostname_short}}{% endif %}{{'\t'}}localhost localhost.localdomain localhost4 localhost4.localdomain4"
+    state: present
+  tags: hostname
+  when: set_hostname is defined
+
+- name: centos.yml - Hostname | Update the IPv6 hostname (pt. 3) - (/etc/hosts)
+  lineinfile:
+    dest: /etc/hosts
+    regexp: "^::1"
+    line: "::1{{'\t\t'}}{{inventory_hostname}}{% if inventory_hostname != inventory_hostname_short %}{{'\t'}}{{inventory_hostname_short}}{% endif %}{{'\t'}}localhost localhost localhost.localdomain localhost6 localhost6.localdomain6"
+    state: present
+  tags: hostname
+  when: set_hostname is defined
+
+- name: centos.yml - disable ipv6
+  sysctl: name={{ item }} value=1 state=present
+  with_items:
+    - net.ipv6.conf.all.disable_ipv6
+    - net.ipv6.conf.default.disable_ipv6
+    - net.ipv6.conf.lo.disable_ipv6
+  tags: disable_ipv6
+  when: ( disable_ipv6 is defined )
+
+
+- name: centos.yml - placeholder true for ipv6 in modprobe
+  lineinfile: "dest=/etc/modprobe.conf line='install ipv6 /bin/true' create=yes"
+  notify:
+    - rmmodipv6
+  tags: disable_ipv6
+  when: ( disable_ipv6 is defined )
+
+- name: centos.yml - RedHat | disable ipv6 in sysconfig/network
+  lineinfile:
+    dest: /etc/sysconfig/network
+    regexp: "^{{ item.regexp }}"
+    line: "{{ item.line }}"
+    backup: yes
+    create: yes
+  with_items:
+    - { regexp: 'NETWORKING_IPV6=.*', line: 'NETWORKING_IPV6=NO' }
+    - { regexp: 'IPV6INIT=.*', line: 'IPV6INIT=no' }
+  notify:
+    - restart network
+  tags: disable_ipv6
+  when: ( disable_ipv6 is defined )
+
+- name: centos.yml - set yum proxy
+  blockinfile:
+    block: |
+      proxy={{ yum_proxy }}
+      proxy_username={{ yum_proxy_username }}
+      proxy_password={{ yum_proxy_password }}
+    dest: /etc/yum.conf
+    state: present
+    marker: "# yum-proxy"
+    insertafter: EOF
+  tags: yum_proxy
+  when: ( yum_proxy is defined )
+
+# ------------------------------------------------------------
+
+- name: centos - install ntpd
+  yum: 
+    name: [ntpdate, ntp]
+  environment:
+    LANG: "en_US.UTF-8"
+    LC_ALL: "en_US.UTF-8"
+  tags: ntp
+  when: (time_sync is defined and time_sync == "ntp")
+
+- name: centos - ensure chronyd is stop and disbled
+  service:
+    name: chronyd
+    state: stopped
+    enabled: no
+  tags: ntp
+  when: (time_sync is defined and time_sync == "ntp" and ansible_facts.services["chronyd.service"] is defined)
+
+- name: centos - write ntpd config file
+  template:
+    src: ./template/ntp.conf.j2
+    dest: /etc/ntp.conf
+  tags: ntp
+  notify:
+    - restart ntpd
+  when: (time_sync is defined and time_sync == "ntp")
+
+- name: centos - ensure ntpd is running and enabled
+  service:
+    name: ntpd
+    state: started
+    enabled: yes
+  tags: ntp
+  when: (time_sync is defined and time_sync == "ntp" )
+
+# ---------------------------------------------------------------
+
+- name: Check if EPEL repo is already configured.
+  stat:
+    path: "{{ epel_repofile_path }}"
+  tags: epel
+  register: epel_repofile_result
+  when: install_common_packets is defined and add_epel is defined
+
+#- name: Check if ORACLE EPEL repo is already configured.
+#  stat:
+#    path: "/etc/yum.repos.d/oracle-epel-ol8.repo"
+#  tags: epel_ole
+#  register: epel_ole_repofile_result
+#  when: install_common_packets is defined and  add_epel is defined
+
+- name: Install EPEL repo.
+  yum:
+    name: "{{ epel_repo_url }}"
+    state: present
+  register: result
+  until: result is succeeded
+  retries: 5
+  delay: 10
+  tags: epel
+  when: not epel_repofile_result.stat.exists and install_common_packets is defined and  add_epel is defined and OS == "C7"
+
+- name: Import EPEL GPG key.
+  rpm_key:
+    key: "{{ epel_repo_gpg_key_url }}"
+    state: present
+  tags: epel
+  when: not epel_repofile_result.stat.exists and install_common_packets is defined and  add_epel is defined and OS == "C7"
+#  ignore_errors: "{{ ansible_check_mode }}"
+
+- name: Remove First EPEL repo Centos 8
+  dnf:
+    name: epel-release
+    state: absent
+  tags: epel
+  when: not epel_repofile_result.stat.exists and install_common_packets is defined and add_epel is defined and  OS == "C8"
+
+- name: Install EPEL repo Centos 8
+  dnf:
+    name: epel-release
+    state: latest
+  tags: epel
+  when: not epel_repofile_result.stat.exists and install_common_packets is defined and add_epel is defined and  OS == "C8"
+
+- name: Install EPEL repo OLE 8
+  dnf:
+    name: "https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm"
+    state: present
+    disable_gpg_check: yes
+  tags: epel_ole
+  when: install_common_packets is defined and add_epel is defined and  OS == "OLE8"
+
+# ---------------------------------------------------------------
+
+- name: centos - install chronyd service
+  yum: name=chrony state=latest
+  environment:
+    LANG: "en_US.UTF-8"
+    LC_ALL: "en_US.UTF-8"
+  tags: ntp
+  when: (time_sync is defined and time_sync == "chrony")
+
+- name: centos - ensure ntpd is stop and disbled
+  service:
+    name: ntpd
+    state: stopped
+    enabled: no
+  tags: ntp
+  when: (time_sync is defined and time_sync == "chrony" and ansible_facts.services["chronyd.ntpd"] is defined)
+
+- name: centos - write chrony config file
+  template:
+    src: ./template/chrony.conf.j2
+    dest: /etc/chrony.conf
+  tags: [ntp,chrony_conf]
+  notify:
+    - restart chronyd
+  when: (time_sync is defined and time_sync == "chrony")
+
+- name: centos - ensure chronyd is running and enabled
+  service:
+    name: chronyd
+    state: started
+    enabled: yes
+  tags: ntp
+  when: (time_sync is defined and time_sync == "chrony")
+
+# ------------------------------------------------------------
+
+- name: centos.yml - uninstall python urllib3
+  pip:
+    name: "{{ packages }}"
+  vars:
+    packages:
+      - urllib3
+    state: absent
+  tags: packets
+  when: install_common_packets1 is defined
+
+- name: centos - ensure a list of packages installed ( centos ver 7 and  ver 8)
+  yum:
+    name: "{{ packages }}"
+    state: latest
+  vars:
+    packages:
+    - vim
+    - meld
+    - cifs-utils
+    - nano
+    - telnet
+    - unzip
+    - wget
+    - p7zip
+    - sysstat
+    - pigz
+    - mc
+    - net-tools
+    - traceroute
+    - tcpdump
+    - sysstat
+    - iotop
+    - git
+    - psmisc
+    - nethogs
+    - iptraf
+    - mtr
+    - open-vm-tools
+    - bind-utils
+    - tree
+    - htop
+    - nmon
+    - atop
+    - iperf3
+    - curl
+    - lftp
+    - nfs-utils
+    - lnav
+    - yum-utils
+    - bash-completion
+    - screen
+    - bzip2
+    - gcc
+    - jq
+    - samba-client
+    - ncdu
+
+
+- name: centos - ensure a list of packages installed ( centos ver 7)
+  yum:
+    name: "{{ packages }}"
+    state: latest
+  vars:
+    packages:
+    - python2-pip
+    - bridge-utils
+    - httpie
+    - python-urllib3
+    - python-requests
+  tags: packets
+  when: install_common_packets is defined and  hostvars[inventory_hostname].ansible_distribution_major_version|int == 7
+
+- name: centos - ensure a list of packages installed ( centos ver 8)
+  yum:
+    name: "{{ packages }}"
+    state: latest
+  vars:
+    packages:
+    - python3-pip
+    - python3-netaddr
+  tags: packets8
+  when: install_common_packets is defined and  hostvars[inventory_hostname].ansible_distribution_major_version|int  == 8
+
+
+- name: centos install the 'Development tools' package group
+  yum:
+    name: "@Development tools"
+    state: present
+  tags: packets
+  when: install_develop_packets is defined
+
+- name: centos - install yaml syntax in mcedit
+  blockinfile:
+    block: |
+      file ..\*\\.(ya?ml|YML)$ YAML\sFile
+      include yaml.syntax
+    dest: /usr/share/mc/syntax/Syntax
+    state: present
+    marker: "# yaml-syntax"
+    insertbefore: EOF
+  tags: yml_syntax
+  when: install_common_packets is defined
+
+- name: centos - copy yaml.syntax
+  copy:
+    src: ./template/yaml.syntax
+    dest: /usr/share/mc/syntax/yaml.syntax
+    owner: root
+    group: root
+    mode: 0644
+  tags: yml_syntax
+  when: install_common_packets is defined
+
+
+- name: chatbot.yml - set never -> /sys/kernel/mm/transparent_hugepage/enabled via service. Centos 7 
+  copy:
+    src: ./template/disable-thp.service
+    dest: /etc/systemd/system/disable-thp.service
+    owner: root
+    group: root
+    mode: 0644
+    backup: yes
+  tags: thp
+  notify:
+    - restart systemd-sysctl
+  when: disable_thp|bool and  hostvars[inventory_hostname].ansible_distribution_major_version|int  == 7  
+
+
+- name: get current kernel parameters  THP - Centos 8 / OLE 8
+  command: /usr/bin/grub2-editenv - list
+  register: kernelopts
+  changed_when: false
+  tags: thp
+  when: disable_thp|bool and  hostvars[inventory_hostname].ansible_distribution_major_version|int  == 8
+
+- name: Update the bootloader menu THP - Centos 8 / OLE 8
+  command: /usr/bin/grub2-editenv - set "{{ item }} transparent_hugepage=never"
+  with_items: '{{ kernelopts.stdout_lines | select(''match'', ''^kernelopts.*'') |  list }}'
+  when:
+    - kernelopts.stdout_lines is defined
+    - kernelopts.stdout_lines | length > 0
+    - kernelopts.stdout | regex_search('^kernelopts=(?:.*\s)?transparent_hugepage=never(?:\s.*)?$', multiline=True) is none
+    - disable_thp|bool 
+    - hostvars[inventory_hostname].ansible_distribution_major_version|int  == 8
+  tags: thp
+
+- name: Set hostname and reboot
+  command: pwd
+  notify:
+    - Restart server
+    - Wait for server to restart
+  when:
+    - kernelopts.stdout_lines is defined
+    - kernelopts.stdout_lines | length > 0
+    - kernelopts.stdout | regex_search('^kernelopts=(?:.*\s)?transparent_hugepage=never(?:\s.*)?$', multiline=True) is none
+    - disable_thp|bool 
+    - hostvars[inventory_hostname].ansible_distribution_major_version|int  == 8
+    - thp_dont_reboot is not defined
+  tags: thp
+
+- name: chatbot.yml - Start and Enable disable-thp Service
+  service:
+    name: disable-thp
+    daemon_reload: yes
+    state: started
+    enabled: yes
+  tags: thp
+  when: disable_thp|bool and  hostvars[inventory_hostname].ansible_distribution_major_version|int  == 7  
+
+- name: centos - upgrade pip
+  pip:
+    name: pip
+    extra_args: --upgrade
+    state: latest
+  when: install_common_packets is defined and  hostvars[inventory_hostname].ansible_distribution_major_version|int  == 8
+
+- name: centos - upgrade pip up to 21
+  command:
+    cmd: pip install --upgrade "pip < 21.0"
+  when: install_common_packets is defined and  hostvars[inventory_hostname].ansible_distribution_major_version|int  == 7
+
+- name: centos.yml - install python packages
+  pip:
+    name: "{{ packages }}"
+  vars:
+    packages:
+    - python-etcd
+    - python-consul
+    - dnspython
+    - boto
+    - mock
+    - requests
+    - six
+    - kazoo
+    - click
+    - tzlocal
+    - prettytable
+    - PyYAML
+  tags: python
+  when: install_common_packets is defined
+
+- name: Add /usr/local/bin to Securing path
+  replace:
+    dest: /etc/sudoers
+    regexp: '^(.*)(secure_path = )(/sbin:)(.*)$'
+    replace: '\1\2/usr/local/bin:\3\4'
+    validate: 'visudo -cf %s'
+
+#- name: centos - Correct vm.max_map_count
+#  sysctl:
+#    name: vm.max_map_count
+#    value: 262144
+#    state: present
+#  tags: set_vm_max
+
+- name: centos - set sysctl network variables
+  copy:
+    src: ./template/99-sysctl.conf
+    dest: /etc/sysctl.d/99-sysctl.conf
+    owner: root
+    group: root
+    mode: 0644
+    backup: yes
+  tags: sysctl
+  notify:
+    - restart systemd-sysctl
+  when: correct_sysctl_network is defined
+####################################################################################
+- name: centos - NFS-SERVER
+  block:
+
+  - name: Ensure NFS utilities are installed.
+    package: name=nfs-utils state=present
+    tags: nfs_server
+
+  - name: Ensure rpcbind is running as configured.
+    service:
+      name: rpcbind
+      state: "started"
+      enabled: "true"
+    tags: nfs_server
+    
+  - name: Ensure directories to export exist
+    file: 'path="{{ item.strip().split()[0] }}" state=directory'
+    with_items: "{{ nfs_exports }}"
+    tags: nfs_server
+
+  - name: Copy exports file.
+    template:
+      src: ./template/exports.j2
+      dest: /etc/exports
+      owner: root
+      group: root
+      mode: 0644
+    notify: reload nfs
+    tags: nfs_server
+
+  - name: Ensure nfs is running.
+    service: "name=nfs-server state=started enabled=yes"
+    when: nfs_exports|length
+    tags: nfs_server
+
+  when: (nfs_exports is defined)
+
+####################################################################################
+- name: centos - NFS-CLIENT
+  block:
+
+  - name: Ensure NFS utilities are installed.
+    package: name=nfs-utils state=present
+    tags: nfs_client
+
+  - name: Ensure rpcbind is running as configured.
+    service:
+      name: rpcbind
+      state: "started"
+      enabled: "true"
+    tags: nfs_client
+
+  - name: Ensure directories to mount exist
+    file: 
+      path: "{{ item.path }}"
+      state: directory
+    with_items: "{{ nfs_share_mounts }}"
+    tags: nfs_client
+
+  - name: Add to fstab
+    mount:
+      fstype: nfs
+#      path: "{{ nfs_client_dit }}"
+      name: "{{ item.path }}"
+      opts: "rw,sync,hard,intr"
+#      opts: "{{ item.opts | default(nfs_mount_opts) }}"
+      src: "{{ item.location }}"
+      dump: "{{ item.dump | default(omit) }}"
+      passno: "{{ item.passno | default(omit) }}"
+      state: mounted
+    with_items: "{{ nfs_share_mounts }}"
+    tags: nfs_client
+
+  when: (nfs_share_mounts is defined)
+
+##################################################################################
+- name: centos.yml - set timezone to {{ timezone }}
+  timezone:
+    name: "{{ timezone }}"
+  notify:
+    - restart crond
+  tags: set_timezone
+  when: (time_sync is defined and timezone is defined)
+
+- name: Install Far2l repo
+  get_url:
+    url: "https://copr.fedorainfracloud.org/coprs/polter/far2l/repo/epel-8/polter-far2l-epel-8.repo"
+    dest: /etc/yum.repos.d
+  tags: far2l
+  when: far2l is defined and far2l|bool and OS == "OLE8"
+
+- name: Install Far2l
+  dnf:
+    name: far2l
+    state: present
+    disable_gpg_check: yes
+  tags: far2l
+  when: far2l is defined and far2l|bool and OS == "OLE8"
+
