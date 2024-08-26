@@ -1,0 +1,18 @@
+https://github.com/vectordotdev/vector/issues/6731
+
+[transforms.route]
+type = "route"
+inputs = ["generate"]
+reroute_unmatched = true
+route.production = 'env = string!(.env); env == "production"'
+route.staging = 'env = string!(.env); env ==  "staging"'
+# _unmatched catches others. To use it enable rerouting with `reroute_unmatched = true`
+
+[sinks.console]
+type = "console"
+inputs = ["route.production", "route.staging"]
+encoding.codec = "json"
+
+[sinks.blackhole]
+type = "blackhole"
+inputs = [ "route._unmatched" ]

@@ -1,0 +1,44 @@
+[sources.generate]
+type = "generator"
+format = "shuffle"
+interval = 1.0
+lines = [
+  '{ "env": "production", "message": "hello"}',
+  '{ "env": "staging", "message": "hello"}',
+  '{ "env": "dev", "message": "hello"}',
+]
+sequence = false
+
+[transforms.json]
+type = "json_parser"
+inputs = ["generate"]
+
+[transforms.remap]
+type = "remap"
+inputs = ["json"]
+source = """
+env = string!(.env)
+.route = if env == "production" {
+  "production"
+} else if env == "staging" {
+  "staging"
+} else {
+  "other"
+}
+"""
+
+[transforms.route]
+type = "route"
+inputs = ["remap"]
+route.production = '.route == "production"'
+route.staging = '.route == "staging"'
+route.other = '.route == "other"'
+
+[sinks.console]
+type = "console"
+inputs = ["route.production", "route.staging"]
+encoding.codec = "json"
+
+[sinks.blackhole]
+type = "blackhole"
+inputs = ["route.other"]
