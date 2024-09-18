@@ -1,0 +1,27 @@
+docker context create remote --docker "${COMPOSE_SSH}" || docker context use remote
+
+
+if docker --context remote container inspect -f '{{.State.Health.Status}}' "${CI_PROJECT_NAME}-${CONTAINER_NAME}-green-1" | grep -q "healthy"; then
+  DEPLOY_COLOR="blue"
+  REMOVE_COLOR="green"
+
+elif docker --context remote container inspect -f '{{.State.Health.Status}}' "${CI_PROJECT_NAME}-${CONTAINER_NAME}-blue-1" | grep -q "healthy"; then
+  DEPLOY_COLOR="green"
+  REMOVE_COLOR="blue"
+else
+  echo "Не найдены цвета для развертывания"
+  exit 1
+fi
+
+
+docker-compose --context remote rm -fs "$REMOVE_COLOR"
+docker-compose --context remote up -d "$DEPLOY_COLOR"
+
+
+if docker --context remote container inspect -f '{{.State.Health.Status}}' "${CI_PROJECT_NAME}-${CONTAINER_NAME}-${DEPLOY_COLOR}-1" | grep -q "healthy"; then
+  echo "Развертывание $DEPLOY_COLOR успешно"
+else
+  echo "Ошибка при развертывании $DEPLOY_COLOR"
+  docker-compose --context remote down
+fi
+

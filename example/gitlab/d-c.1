@@ -1,0 +1,8 @@
+script:
+    - docker context create remote --docker "${SSH_STRING}"
+    - docker --context remote ps
+    - docker context use remote
+    - docker-compose --context remote rm -fs ${COMPOSE_SERVICE_NAME}
+    - docker-compose --context remote -f docker-compose.yml up -d ${COMPOSE_SERVICE_NAME}
+
+

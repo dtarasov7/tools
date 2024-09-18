@@ -1,0 +1,7 @@
+stage: deploy
+image:
+  name: docker/compose
+  script:
+    - docker-compose -H "ssh://root@$prod" down --remove-orphans
+    - docker-compose -H "ssh://root@$prod" pull
+    - docker-compose -H "ssh://root@$prod" up -d

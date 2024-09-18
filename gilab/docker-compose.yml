@@ -1,0 +1,41 @@
+version: '3.6'
+services:
+
+  gitlab-runner-priv-dtl:
+    image: gitlab/gitlab-runner:v14.5.2
+    #gitlab/gitlab-runner:alpine
+    volumes:
+      - gitlab_runner_priv:/etc/gitlab-runner:Z
+      - /var/run/docker.sock:/var/run/docker.sock
+#      - ./certs:/etc/gitlab-runner/certs
+    extra_hosts:
+      - "gitlab.sz.rshbcloud.ru: 10.8"
+      - "registry-gitlab.sz.rshbcloud.ru: 10.8"
+    restart: always
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  gitlab-runner-dtl:
+    image: gitlab/gitlab-runner:v14.5.2
+#    image: gitlab/gitlab-runner:alpine
+    volumes:
+      - gitlab_runner:/etc/gitlab-runner:Z
+      - /var/run/docker.sock:/var/run/docker.sock
+#      - ./certs:/etc/gitlab-runner/certs
+    extra_hosts:
+      - "gitlab.sz.rshbcloud.ru: 10.8"
+      - "registry-gitlab.sz.rshbcloud.ru: 10.8"
+    restart: always
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  gitlab_runner_priv:
+  gitlab_runner:
+  gitlab_runner2:

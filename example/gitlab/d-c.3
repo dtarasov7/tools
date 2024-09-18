@@ -1,0 +1,31 @@
+  script:
+    - docker context create remote --docker ${COMPOSE_SSH}
+    - docker --context remote ps -a
+    - docker context use remote
+    - >
+        if [ "$( docker --context remote container inspect -f '{{.State.Health.Status}}' $CI_PROJECT_NAME-$CONTAINER_NAME-green-1 )" == "healthy" ];
+        then
+        export "DEPLOY_COLOR=blue" && export "REMOVE_COLOR=green"; 
+        elif [ "$( docker --context remote container inspect -f '{{.State.Health.Status}}' $CI_PROJECT_NAME-$CONTAINER_NAME-blue-1 )" == "healthy" ];
+        then
+        export "REMOVE_COLOR=blue" && export "DEPLOY_COLOR=green";
+        else
+        echo "Target colors not found" && export "REMOVE_COLOR=blue" && export "DEPLOY_COLOR=green";
+        fi
+    - docker-compose --context remote rm -fs $DEPLOY_COLOR
+    - docker-compose --context remote -f docker-compose.yml up -d $DEPLOY_COLOR      
+    - sleep 60
+    - >
+        if [ "$( docker --context remote container inspect -f '{{.State.Health.Status}}' $CI_PROJECT_NAME-$CONTAINER_NAME-$DEPLOY_COLOR-1 )" == "healthy" ];
+        then 
+        docker-compose --context remote rm -fs $REMOVE_COLOR;
+        else
+        sleep 60;
+        fi
+    - >
+        if [ "$( docker --context remote container inspect -f '{{.State.Health.Status}}' $CI_PROJECT_NAME-$CONTAINER_NAME-$DEPLOY_COLOR-1 )" == "healthy" ];
+        then 
+        docker-compose --context remote rm -fs $REMOVE_COLOR;
+        else
+        echo "Error" && docker-compose --context remote down $REMOVE_COLOR;
+        fi
