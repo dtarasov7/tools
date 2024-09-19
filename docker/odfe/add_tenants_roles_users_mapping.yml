@@ -1,0 +1,329 @@
+---
+tenants:
+- name: varshb
+  description: "Виртуальный_помощник"
+- name: cos
+  description: "cos_tenant"
+- name: tYavagro
+  description: "Yavagro_tenant"
+- name: tVsesvoe
+  description: "VseSvoe_tenant"
+- name: tPSZH
+  description: "PSZH_tenant"
+- name: tB2B
+  description: "Fermerstvo_tenant"
+- name: tB2C
+  description: "SvoeRodnoe_tenant"
+- name: tCoins
+  description: "Coins_tenant"
+- name: tAgro
+  description: "AgroTyri_tenant"
+- name: tPowerDNS
+  description: "PowerDNS_tenant"
+- name: tRshbDigital
+  description: "rshb-digital"
+
+users:
+- name: vector
+  password: tKc5uEeZW0BTW8eOEi0h
+- name: varshb
+  password: Nje3sXhzxXvMzhVyQOYY
+- name: datalab-varshb
+  password: Pa55w0rd
+- name: cos
+  password: Qwerty123
+- name: uMalyutin-KV
+  password: 'Malyutin-KV'
+- name: uShayhutdinov-AA
+  password: 'Shayhutdinov-AA'
+- name: uRedkin-SE
+  password: 'Redkin-SE'
+- name: uErmakova-VO
+  password: 'uErmakova-VO'
+- name: uSmirnov-SA
+  password: 'uSmirnov-SA'
+- name: uKunevich-AO
+  password: 'uKunevich-AO'
+- name: uDzitiev-AS
+  password: 'uDzitiev-AS'
+- name: uShavlohov-MK
+  password: 'uShavlohov-MK'
+- name: uMalhasyan-RA
+  password: 'uMalhasyan-RA'
+- name: uOmelchenko-SL
+  password: 'uOmelchenko-SL'
+- name: uPetelin-AE
+  password: 'uPetelin-AE'
+- name: uKorolev-DA
+  password: 'uKorolev-DA'
+- name: uNilov-SA
+  password: 'uNilov-SA'
+- name: uPylaev-VB
+  password: 'uPylaev-VB'
+- name: uKuksa-MN
+  password: 'uKuksa-MN'
+- name: uSeredenko-DV
+  password: 'uSeredenko-DV'
+- name: uMeshalkin-SY
+  password: 'uMeshalkin-SY'
+- name: uKashchenko-AA
+  password: 'uKashchenko-AA'
+- name: uGunar-AS
+  password: 'uGunar-AS'
+- name: uZhuravlev-AA
+  password: 'uZhuravlev-AA'
+- name: uBerezovskiy-IA
+  password: 'uBerezovskiy-IA'
+- name: uGoncharenko-DA
+  password: 'uGoncharenko-DA'
+- name: uBarihashvili-VR
+  password: 'uBarihashvili-VR'
+- name: uSulimanov-IV
+  password: 'uSulimanov-IV'
+- name: uNetrebko-DS
+  password: 'uNetrebko-DS'
+- name: uSimonenko-AV
+  password: 'uSimonenko-AV'
+- name: uZobnev-NV
+  password: 'uZobnev-NV'
+- name: uPenyaichev-AG
+  password: 'uPenyaichev-AG'
+- name: uShushunov-AA
+  password: 'uShushunov-AA'
+- name: uKosyh-DV
+  password: 'uKosyh-DV'
+- name: uTkachenko-AA
+  password: 'uTkachenko-AA'
+- name: uAkopov-SR
+  password: 'uAkopov-SR'
+- name: uEvich-AS
+  password: 'uEvich-AS'
+- name: uAbramov-OE
+  password: 'uAbramov-OE'
+- name: uDemidova-NS
+  password: 'uDemidova-NS'
+- name: uKabanets-AS
+  password: 'uKabanets-AS'
+- name: uTrushkov-II
+  password: 'uTrushkov-II'
+- name: uMolchanov-MV
+  password: 'uMolchanov-MV'
+- name: uGevlich-VS
+  password: 'uGevlich-VS'
+- name: uShmelev-AS
+  password: 'uShmelev-AS'
+- name: uShegurova-PV
+  password: 'uShegurova-PV'
+- name: uLukyanov-EG
+  password: 'uLukyanov-EG'
+- name: uBobrovskiy-VA
+  password: 'uBobrovskiy-VA'
+- name: uSleptsov-DV
+  password: 'uSleptsov-DV'
+- name: uGrigoreva-VM
+  password: 'uGrigoreva-VM'
+- name: uAdilov-DB
+  password: 'uAdilov-DB'
+- name: uBolotov-IV
+  password: 'uBolotov-IV'
+- name: uKostin-KM
+  password: 'uKostin-KM'
+- name: uNikolaev-KO
+  password: 'uNikolaev-KO'
+- name: uMorugova-AV
+  password: 'uMorugova-AV'
+- name: uBauer-VO
+  password: 'uBauer-VO'
+- name: uKalashnikov-YN
+  password: 'uKalashnikov-YN'
+- name: uGaniev-RR
+  password: 'uGaniev-RR'
+- name: uKolokolov-DV
+  password: 'uKolokolov-DV'
+- name: uKuznetsov-BB
+  password: 'uKuznetsov-BB'
+
+roles:
+- name: vector
+  cluster_permissions: ["cluster_monitor","cluster_composite_ops","indices:admin/template/get","indices:admin/template/put","cluster:admin/ingest/pipeline/put","cluster:admin/ingest/pipeline/get"]
+  index_permissions:
+  - index_patterns: ["cos-*","backend-*","varshb*","job*","vsesvoe*","crshb*","b2b-*","b2c-*","coins-*","agro-*","powerdns-*","rshb-digital-*"]
+    allowed_actions: ["crud","create_index"]
+  tenant_permissions:
+  - tenant_patterns: []
+    allowed_actions: []
+- name: varshb
+  cluster_permissions: ["kibana_all_read"]
+  index_permissions:
+  - index_patterns: ["varshb*"]
+    allowed_actions: ["read"]
+  - index_patterns: ["*.kibana*"]
+    allowed_actions: ["read"]
+  tenant_permissions:
+  - tenant_patterns: ["varshb"]
+    allowed_actions: ["kibana_all_read"]
+- name: cos
+  cluster_permissions: ["kibana_all_read"]
+  index_permissions:
+  - index_patterns: ["cos-*","backend-*"]
+    allowed_actions: ["read"]
+  - index_patterns: ["*.kibana*"]
+    allowed_actions: ["read"]
+  tenant_permissions:
+  - tenant_patterns: ["cos"]
+    allowed_actions: ["kibana_all_read"]
+- name: rYavagro
+  cluster_permissions: ["kibana_all_read"]
+  index_permissions:
+  - index_patterns: ["job*"]
+    allowed_actions: ["read","indices:monitor/settings/get"]
+  - index_patterns: ["*.kibana*"]
+    allowed_actions: ["read"]
+  tenant_permissions:
+  - tenant_patterns: ["tYavagro"]
+    allowed_actions: ["kibana_all_write"]
+- name: rVsesvoe
+  cluster_permissions: ["kibana_all_read"]
+  index_permissions:
+  - index_patterns: ["vsesvoe*"]
+    allowed_actions: ["read","indices:monitor/settings/get"]
+  - index_patterns: ["*.kibana*"]
+    allowed_actions: ["read"]
+  tenant_permissions:
+  - tenant_patterns: ["tVsesvoe"]
+    allowed_actions: ["kibana_all_write"]
+- name: rPSZH
+  cluster_permissions: ["kibana_all_read"]
+  index_permissions:
+  - index_patterns: ["crshb*"]
+    allowed_actions: ["read","indices:monitor/settings/get"]
+  - index_patterns: ["*.kibana*"]
+    allowed_actions: ["read"]
+  tenant_permissions:
+  - tenant_patterns: ["tPSZH"]
+    allowed_actions: ["kibana_all_write"]
+- name: rB2B
+  cluster_permissions: ["kibana_all_read"]
+  index_permissions:
+  - index_patterns: ["b2b*"]
+    allowed_actions: ["read","indices:monitor/settings/get"]
+  - index_patterns: ["*.kibana*"]
+    allowed_actions: ["read"]
+  tenant_permissions:
+  - tenant_patterns: ["tB2B"]
+    allowed_actions: ["kibana_all_write"]
+- name: rB2C
+  cluster_permissions: ["kibana_all_read"]
+  index_permissions:
+  - index_patterns: ["b2c*"]
+    allowed_actions: ["read","indices:monitor/settings/get"]
+  - index_patterns: ["*.kibana*"]
+    allowed_actions: ["read"]
+  tenant_permissions:
+  - tenant_patterns: ["tB2C"]
+    allowed_actions: ["kibana_all_write"]
+- name: rCoins
+  cluster_permissions: ["kibana_all_read"]
+  index_permissions:
+  - index_patterns: ["coins*"]
+    allowed_actions: ["read","indices:monitor/settings/get"]
+  - index_patterns: ["*.kibana*"]
+    allowed_actions: ["read"]
+  tenant_permissions:
+  - tenant_patterns: ["tCoins"]
+    allowed_actions: ["kibana_all_write"]
+- name: rAgro
+  cluster_permissions: ["kibana_all_read"]
+  index_permissions:
+  - index_patterns: ["agro*"]
+    allowed_actions: ["read","indices:monitor/settings/get"]
+  - index_patterns: ["*.kibana*"]
+    allowed_actions: ["read"]
+  tenant_permissions:
+  - tenant_patterns: ["tAgro"]
+    allowed_actions: ["kibana_all_write"]
+- name: rPowerDNS
+  cluster_permissions: ["kibana_all_read"]
+  index_permissions:
+  - index_patterns: ["powerdns-*"]
+    allowed_actions: ["read","indices:monitor/settings/get"]
+  - index_patterns: ["*.kibana*"]
+    allowed_actions: ["read"]
+  tenant_permissions:
+  - tenant_patterns: ["tPowerDNS"]
+    allowed_actions: ["kibana_all_write"]
+- name: rRshbDigital
+  cluster_permissions: ["kibana_all_read"]
+  index_permissions:
+  - index_patterns: ["rshb-digital-*"]
+    allowed_actions: ["read","indices:monitor/settings/get"]
+  - index_patterns: ["*.kibana*"]
+    allowed_actions: ["read"]
+  tenant_permissions:
+  - tenant_patterns: ["tRshbDigital"]
+    allowed_actions: ["kibana_all_write"]
+
+rolesmapping:
+- op: "add"
+  path: "/vector"
+  value: {users: ["vector"]}
+- op: "add"
+  path: "/varshb"
+  value: {users: ["uSmirnov-SA","uAbramov-OE","uEvich-AS","varshb","datalab-varshb"],"backend_roles": []}
+- op: "add"
+  path: "/cos"
+  value: {users: ["cos","uKunevich-AO","uDzitiev-AS","uShavlohov-MK"]}
+- op: "add"
+  path: "/rYavagro"
+  value: {users: ["uKolokolov-DV","uKalashnikov-YN","uSmirnov-SA","uMalyutin-KV","uShayhutdinov-AA","uRedkin-SE","uBauer-VO"],"backend_roles": []}
+- op: "add"
+  path: "/reports_full_access"
+  value: {users: ["uSmirnov-SA","uMalyutin-KV","uShayhutdinov-AA","uRedkin-SE"]}
+- op: "add"
+  path: "/rVsesvoe"
+  value: {users: ["uKolokolov-DV","uKalashnikov-YN","uSmirnov-SA","uMalyutin-KV","uShayhutdinov-AA","uRedkin-SE","uBauer-VO"],"backend_roles": []}
+- op: "add"
+  path: "/rPSZH"
+  value: {users: ["uMalyutin-KV","uErmakova-VO","uSmirnov-SA"]}
+- op: "add"
+  path: "/rB2B"
+  value: {users: ["uGaniev-RR","uMalyutin-KV","uSmirnov-SA","uOmelchenko-SL","uPetelin-AE","uKorolev-DA","uNilov-SA","uPylaev-VB","uKuksa-MN","uSeredenko-DV","uKabanets-AS","uTrushkov-II","uMolchanov-MV","uGevlich-VS","uShmelev-AS","uShegurova-PV","uLukyanov-EG","uBobrovskiy-VA","uSleptsov-DV","uGrigoreva-VM","uAdilov-DB","uBolotov-IV","uKostin-KM","uNikolaev-KO"]}
+- op: "add"
+  path: "/rB2C"
+  value: {users: ["uMorugova-AV","uAkopov-SR","uMalyutin-KV","uDemidova-NS","uSmirnov-SA","uMalhasyan-RA","uMeshalkin-SY","uKashchenko-AA","uGunar-AS","uZhuravlev-AA","uBerezovskiy-IA","uGoncharenko-DA","uBarihashvili-VR","uSulimanov-IV"]}
+- op: "add"
+  path: "/rCoins"
+  value: {users: ["uMalyutin-KV","uSmirnov-SA","uNetrebko-DS","uSimonenko-AV","uZobnev-NV"]}
+- op: "add"
+  path: "/rAgro"
+  value: {users: ["uMalyutin-KV","uSmirnov-SA","uPenyaichev-AG","uShushunov-AA","uKosyh-DV","uTkachenko-AA","uAkopov-SR"]}
+- op: "add"
+  path: "/rPowerDNS"
+  value: {users: ["uSmirnov-SA","uMalyutin-KV"]}
+- op: "add"
+  path: "/rRshbDigital"
+  value: {users: ["uSmirnov-SA","uKuznetsov-BB"]}
+
+index_pattern:
+- tenant: cos
+  index_name: ["cos-*","backend-*"]
+- tenant: varshb
+  index_name: ["varshb*"]
+- tenant: tYavagro
+  index_name: ["job*"]
+- tenant: tVsesvoe
+  index_name: ["vsesvoe*"]
+- tenant: tPSZH
+  index_name: ["crshb*"]
+- tenant: tB2B
+  index_name: ["b2b-*"]
+- tenant: tB2C
+  index_name: ["b2c-*"]
+- tenant: tCoins
+  index_name: ["coins-*"]
+- tenant: tAgro
+  index_name: ["agro-*"]
+- tenant: tPowerDNS
+  index_name: ["powerdns-*"]
+- tenant: tRshbDigital
+  index_name: ["rshb-digital-*"]

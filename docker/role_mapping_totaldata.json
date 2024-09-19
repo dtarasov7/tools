@@ -1,0 +1,5 @@
+[
+  {
+    "op": "add", "path": "/varshb", "value": { "users": ["varshb"] }
+  }
+]

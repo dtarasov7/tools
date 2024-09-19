@@ -1,0 +1,29 @@
+---
+notifications: # only webhook
+- name: ctp-test
+  enable: false
+  description: "ctp test chat"
+  webhook:
+#    #url: "https://api.telegram.org/bot<set_bot_id>/sendMessage?chat_id=-<set_chat_id>"
+    url: "https://api.telegram.org/bot172763:AxvQiFzD8Xx_MwD6q-A/sendMessage?chat_id=-92363"
+
+monitors:
+- name: ProdB2cFresh-subscriptions
+  enabled: true
+  schedule:
+    interval: 10
+    unit: MINUTES
+  indices: ["b2c-prod-fresh-proxy-*"]
+  range:
+    from: "{{period_end}}||-15m"
+  query:
+    match_phrase:
+      path: /api/v1/subscription
+  triggers:
+    name: ProdB2cFresh-subscriptions
+    severity: 1
+    condition: ctx.results[0].hits.total.value > 0
+    actions:
+      name: ProdB2cFresh-subscriptions
+      notification_channel: telegram-b2c-prod-fresh-proxy
+      message_template: "За последние 15 минут {{ctx.results.0.hits.total.value}} раз(а) было обращений на контроллеры подписок."

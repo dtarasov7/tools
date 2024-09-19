@@ -1,0 +1,6 @@
+{
+    "persistent" : {
+        "logger.org.elasticsearch.deprecation": "ERROR"
+    }
+}
+
