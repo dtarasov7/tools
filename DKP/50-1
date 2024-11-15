@@ -1,0 +1,2 @@
+ab -n 20000 -c 100 -k http://pmi-grafana.example.com/
+kubectl get hpa pmi-hpa -w

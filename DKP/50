@@ -1,0 +1,98 @@
+my_image=$(kubectl -n d8-monitoring get deployment grafana-v10 -o json| jq ".spec.template.spec.containers[0].image"|tr -d \")
+kubectl apply -f -<<EOF
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: default
+  name: service-pmi-grafana
+  labels:
+    app: service-gpmi-grafana
+  #   prometheus.deckhouse.io/custom-target: pmi-grafana-deployment
+  # annotations:
+  #   prometheus.deckhouse.io/port: '3000'  
+spec:
+  type: ClusterIP
+  ports:
+    - port: 3000
+      targetPort: 3000
+  selector:
+    app: pmi-grafana
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    nginx.ingress.kubernetes.io/backend-protocol: HTTP
+  labels:
+    app: pmi-grafana
+  name: pmi-grafana
+  namespace: default
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: pmi-grafana.example.com
+    http:
+      paths:
+      - backend:
+          service:
+            name: service-pmi-grafana
+            port:
+              number: 3000
+        path: /
+        pathType: ImplementationSpecific
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: default
+  name: pmi-grafana-deployment
+  labels:
+    app: pmi-grafana
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pmi-grafana
+  template:
+    metadata:
+      name: grafana
+      labels:
+        app: pmi-grafana
+    spec:
+      containers:
+      - name: grafa-na
+        image: $my_image
+      imagePullSecrets:
+      - name: regcred
+---
+apiVersion: deckhouse.io/v1beta1
+kind: IngressMetric
+metadata:
+  name: pmi-grafana
+spec:
+  query: sum(rate(ingress_nginx_detail_requests_total{<<.LabelMatchers>>,vhost="pmi-grafana.example.com"}[1m])) by (<<.GroupBy>>)
+---
+kind: HorizontalPodAutoscaler
+apiVersion: autoscaling/v2
+metadata:
+  name: pmi-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: pmi-grafana-deployment
+  minReplicas: 1
+  maxReplicas: 15
+  metrics:
+  - type: Object
+    object:
+      describedObject:
+        apiVersion: networking.k8s.io/v1
+        kind: Ingress
+        name: pmi-grafana
+      metric:
+        name: pmi-grafana
+      target:
+        type: Value
+        value: 100
+EOF
