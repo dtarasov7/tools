@@ -1,0 +1,341 @@
+Andrey Shingiriy
+
+apiVersion: deckhouse.io/v1alpha1
+kind: ModuleConfig
+metadata:
+  name: user-authn
+spec:
+  enabled: true
+  version: 2
+  settings:
+    controlPlaneConfigurator:
+      dexCAMode: FromIngressSecret
+    publishAPI:
+      enabled: true
+      https:
+        mode: SelfSigned
+
+apiVersion: deckhouse.io/v1alpha1
+kind: NodeGroupConfiguration
+metadata:
+  name: enable-ntp-on-node.sh
+spec:
+  weight: 100
+  nodeGroups: ["*"]
+  bundles: ["*"]
+  content: |
+    systemctl enable systemd-timesyncd
+    systemctl start systemd-timesyncd
+
+apiVersion: deckhouse.io/v1alpha1
+kind: NodeGroupConfiguration
+metadata:
+  name: containerd-additional-config.sh
+spec:
+  bundles:
+  - '*'
+  content: |
+    mkdir -p /etc/containerd/conf.d
+    bb-sync-file /etc/containerd/conf.d/default_registry.toml - << "EOF"
+    version = 2
+    [plugins]
+      [plugins."io.containerd.grpc.v1.cri"]
+        [plugins."io.containerd.grpc.v1.cri".registry.mirrors]
+          [plugins."io.containerd.grpc.v1.cri".registry.mirrors."docker.io"]
+            endpoint = ["https://private.registry.com:443"]
+          [plugins."io.containerd.grpc.v1.cri".registry.mirrors."*"]
+            endpoint = ["https://private.registry.com:443"]
+    EOF
+  nodeGroups:
+  - worker
+  weight: 31
+
+
+Andrey Shingiriy
+Events:
+  Type     Reason     Age                    From               Message
+  ----     ------     ----                   ----               -------
+  Normal   Created    4m33s                  kubelet            Created container rules-loader
+  Normal   Started    4m33s                  kubelet            Started container falcosidekick
+  Normal   Pulled     4m33s                  kubelet            Container image "pilotk8snexus.psb-lab.ru:6443/dkp/deckhouse@sha256:e8b4a47a22a2fdde86277ed18107c940754280425d20945d9555b5b7fa004cfb" already present on machine
+  Normal   Pulled     4m33s                  kubelet            Container image "pilotk8snexus.psb-lab.ru:6443/dkp/deckhouse@sha256:0f895d84693784f91f0667df364432e8f4f5d87dac48f2508861d2fe19900c99" already present on machine
+  Normal   Scheduled  4m33s                  default-scheduler  Successfully assigned d8-runtime-audit-engine/runtime-audit-engine-kz6wg to deckhouse-front01
+  Normal   Created    4m33s                  kubelet            Created container falcosidekick
+  Normal   Started    4m32s                  kubelet            Started container rules-loader
+  Normal   Pulled     4m32s                  kubelet            Container image "pilotk8snexus.psb-lab.ru:6443/dkp/deckhouse@sha256:9e39972534549245803c003b4423cc745297af43affc2bbc4dd3c4da225e46e5" already present on machine
+  Normal   Created    4m32s                  kubelet            Created container kube-rbac-proxy
+  Normal   Started    4m32s                  kubelet            Started container kube-rbac-proxy
+  Warning  Unhealthy  4m32s                  kubelet            Readiness probe failed: Get "https://172.20.255.152:8766/livez": dial tcp 172.20.255.152:8766: connect: connection refused
+  Warning  Unhealthy  4m32s                  kubelet            Readiness probe failed: cat: /tmp/ready: No such file or directory
+  Normal   Pulled     4m18s (x3 over 4m33s)  kubelet            Container image "pilotk8snexus.psb-lab.ru:6443/dkp/deckhouse@sha256:41f3424aff45f8b6addc38489d3fb0b4f69e2329ca4ccfa8ac1f6ca00dbd78e5" already present on machine
+  Normal   Started    4m18s (x3 over 4m33s)  kubelet            Started container falco
+  Normal   Created    4m18s (x3 over 4m33s)  kubelet            Created container falco
+  Warning  BackOff    4m17s (x5 over 4m31s)  kubelet            Back-off restarting failed container falco in pod runtime-audit-engine-kz6wg_d8-runtime-audit-engine(7ce2f41b-50a2-4847-94e4-d504cc57b526)
+
+Andrey Shingiriy
+https://deckhouse.ru/products/kubernetes-platform/documentation/v1/modules/650-runtime-audit-engine/#%D1%82%D1%80%D0%B5%D0%B1%D0%BE%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F
+
+Andrey Shingiriy
+https://deckhouse.ru/products/kubernetes-platform/documentation/v1/#%D0%BE%D1%81%D0%BE%D0%B1%D0%B5%D0%BD%D0%BD%D0%BE%D1%81%D1%82%D0%B8-%D0%B0%D0%B2%D1%82%D0%BE%D0%BC%D0%B0%D1%82%D0%B8%D0%BA%D0%B8-%D0%B7%D0%B0%D0%B2%D0%B8%D1%81%D1%8F%D1%89%D0%B8%D0%B5-%D0%BE%D1%82-%D1%82%D0%B8%D0%BF%D0%B0-%D0%BC%D0%BE%D0%B4%D1%83%D0%BB%D1%8F
+
+полезна€ информаци€ по работе автоматики на бале лайбаков
+чтобы ты понимал механизм распределени€ модулей
+ну или как мы вчера сделали - это указать в €вном виде)
+
+apiVersion: deckhouse.io/v1
+kind: IngressNginxController
+metadata:
+  name: nginx
+spec:
+  hostPort:
+    httpPort: 80
+    httpsPort: 443
+  ingressClass: nginx
+  inlet: LoadBalancer
+  nodeSelector:
+    node-role.deckhouse.io/system: ""
+  tolerations:
+  - operator: Exists
+---
+apiVersion: deckhouse.io/v1
+kind: IngressNginxController
+metadata:
+  name: nginx-passthrough
+spec:
+  ingressClass: nginx
+  inlet: LoadBalancerWithSSLPassthrough
+  loadBalancerWithSSLPassthrough:
+    sourceRanges: 
+      - 192.168.230.227/30
+  nodeSelector:
+    node-role.deckhouse.io/system: ""
+  tolerations:
+  - effect: NoExecute
+    key: dedicated.deckhouse.io
+    value: system
+
+apiVersion: deckhouse.io/v1alpha1
+kind: ModuleConfig
+metadata:
+  name: metallb
+spec:
+  version: 1
+  enabled: true
+  settings:
+    addressPools:
+    - addresses:
+      - 192.168.230.221-192.168.230.223
+      name: system-pool
+      protocol: layer2
+    speaker:
+      nodeSelector:
+        node-role.deckhouse.io/metallb: ""
+      tolerations:
+      - effect: NoExecute
+        key: dedicated.deckhouse.io
+        operator: Equal
+        value: system
+Andrey Shingiriy
+
+https://deckhouse.ru/products/kubernetes-platform/documentation/v1/modules/140-user-authz/#%D0%BD%D0%BE%D0%B2%D0%B0%D1%8F-%D1%80%D0%BE%D0%BB%D0%B5%D0%B2%D0%B0%D1%8F-%D0%BC%D0%BE%D0%B4%D0%B5%D0%BB%D1%8C
+
+
+kubectl -n d8-monitoring get deployment grafana-v10 -o json| jq ".spec.template.spec.containers[0].image"
+
+
+my_image=$(kubectl -n d8-monitoring get deployment grafana-v10 -o json| jq ".spec.template.spec.containers[0].image"|tr -d \")
+kubectl apply -f -<<EOF
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: default
+  name: service-pmi-grafana
+  labels:
+    app: service-gpmi-grafana
+  #   prometheus.deckhouse.io/custom-target: pmi-grafana-deployment
+  # annotations:
+  #   prometheus.deckhouse.io/port: '3000'  
+spec:
+  type: ClusterIP
+  ports:
+    - port: 3000
+      targetPort: 3000
+  selector:
+    app: pmi-grafana
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    nginx.ingress.kubernetes.io/backend-protocol: HTTP
+  labels:
+    app: pmi-grafana
+  name: pmi-grafana
+  namespace: default
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: pmi-grafana.example.com
+    http:
+      paths:
+      - backend:
+          service:
+            name: service-pmi-grafana
+            port:
+              number: 3000
+        path: /
+        pathType: ImplementationSpecific
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: default
+  name: pmi-grafana-deployment
+  labels:
+    app: pmi-grafana
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pmi-grafana
+  template:
+    metadata:
+      name: grafana
+      labels:
+        app: pmi-grafana
+    spec:
+      containers:
+      - name: grafa-na
+        image: $my_image
+      imagePullSecrets:
+      - name: regcred
+---
+apiVersion: deckhouse.io/v1beta1
+kind: IngressMetric
+metadata:
+  name: pmi-grafana
+spec:
+  query: sum(rate(ingress_nginx_detail_requests_total{<<.LabelMatchers>>,vhost="pmi-grafana.example.com"}[1m])) by (<<.GroupBy>>)
+---
+kind: HorizontalPodAutoscaler
+apiVersion: autoscaling/v2
+metadata:
+  name: pmi-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: pmi-grafana-deployment
+  minReplicas: 1
+  maxReplicas: 15
+  metrics:
+  - type: Object
+    object:
+      describedObject:
+        apiVersion: networking.k8s.io/v1
+        kind: Ingress
+        name: pmi-grafana
+      metric:
+        name: pmi-grafana
+      target:
+        type: Value
+        value: 100
+EOF
+
+ab -n 20000 -c 100 -k http://pmi-grafana.example.com/
+kubectl get hpa pmi-hpa -w
+
+kubectl get ingressmetrics.deckhouse.io -o yaml|grep query
+
+
+ƒобавл€ем ServiceMetric (метрика, по которой будем скейлитьс€):
+kubectl -n my-hpa-custom-test create -f -<<EOF
+apiVersion: deckhouse.io/v1beta1
+kind: ServiceMetric
+metadata:
+  name: rmq-queue-messages
+spec:
+  query: avg_over_time(rabbitmq_queue_messages{job="custom-my-rabbitmq"}[1m])
+EOF
+
+kubectl -n my-hpa-custom-test create -f -<<EOF
+kind: HorizontalPodAutoscaler
+apiVersion: autoscaling/v2
+metadata:
+name: my-hpa
+spec:
+scaleTargetRef:
+apiVersion: apps/v1
+kind: Deployment
+name: my-worker
+minReplicas: 1
+maxReplicas: 15
+metrics:
+- type: Object
+object:
+describedObject:
+apiVersion: v1
+kind: Service
+name: my-rabbitmq
+metric:
+name: rmq-queue-messages
+target:
+type: Value
+value: 30
+EOF
+
+
+Andrey Shingiriy
+https://deckhouse.ru/products/kubernetes-platform/modules/console/stable/configuration.html#parameters-https-customcertificate
+
+¬от так дл€ модул€ с UI переопределетс€ кастомный сертификат, замен€€ настройки с модул€ global
+Ёто пример дл€ модул€ Console
+
+¬от пример дл€ модул€ Upmeter
+https://deckhouse.ru/products/kubernetes-platform/documentation/v1/modules/upmeter/configuration.html#parameters-https
+
+“о есть € правильно пон€л, что надо в конфиге каждого модул€ , который имеет ингрес , вставл€ть параметр
+https:
+mode: CustomCertificate
+customCertificate:
+secretName: foobar
+
+Andrey Shingiriy
+https://deckhouse.ru/products/kubernetes-platform/documentation/v1/modules/ingress-nginx/cr.html#ingressnginxcontroller-v1-spec-defaultsslcertificate
+
+пример ингресса c кастомным сертом
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    nginx.ingress.kubernetes.io/backend-protocol: HTTPS
+    nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+  labels:
+    app: ipa
+  name: ipa
+  namespace: fipa
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: fipa.example.com
+    http:
+      paths:
+      - backend:
+          service:
+            name: fipa-cip
+            port:
+              number: 443
+        path: /
+      - backend:
+          service:
+            name: fipa-cip
+            port:
+              number: 389
+        path: /
+        pathType: ImplementationSpecific
+  tls:
+  - hosts:
+    - fipa.example.com
+    secretName: fipa-test

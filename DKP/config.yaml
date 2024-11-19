@@ -1,0 +1,354 @@
+apiVersion: deckhouse.io/v1
+kind: IngressNginxController
+metadata:
+  name: nginx
+spec:
+  hostPort:
+    httpPort: 80
+    httpsPort: 443
+  ingressClass: nginx
+  inlet: HostPort
+  nodeSelector:
+    node-role.kubernetes.io/frontend: ''
+  tolerations:
+  - operator: Exists
+---
+apiVersion: deckhouse.io/v1
+kind: NodeGroup
+metadata:
+  name: master
+spec:
+  disruptions:
+    approvalMode: Manual
+  kubelet:
+    containerLogMaxFiles: 4
+    containerLogMaxSize: 50Mi
+    resourceReservation:
+      mode: Auto
+  nodeTemplate:
+    labels:
+      node-role.kubernetes.io/control-plane: ''
+      node-role.kubernetes.io/master: ''
+    taints:
+    - effect: NoSchedule
+      key: node-role.kubernetes.io/control-plane
+  nodeType: Static
+  staticInstances:
+    count: 2
+    labelSelector:
+      matchLabels:
+        role: master
+---
+apiVersion: deckhouse.io/v1
+kind: NodeGroup
+metadata:
+  name: worker
+spec:
+  nodeTemplate:
+    labels:
+      node-role.deckhouse.io/worker: ""
+  nodeType: Static
+  staticInstances:
+    count: 3
+    labelSelector:
+      matchLabels:
+        role: worker
+---
+apiVersion: deckhouse.io/v1
+kind: NodeGroup
+metadata:
+  name: frontend
+spec:
+  nodeTemplate:
+    labels:
+      node-role.deckhouse.io/frontend: ''
+    taints:
+    - effect: NoExecute
+      key: dedicated.deckhouse.io
+      value: frontend
+  nodeType: Static
+  staticInstances:
+    count: 2
+    labelSelector:
+      matchLabels:
+        role: frontend
+---
+apiVersion: deckhouse.io/v1
+kind: NodeGroup
+metadata:
+  name: system
+spec:
+  nodeTemplate:
+    labels:
+      node-role.deckhouse.io/system: ''
+    taints:
+    - effect: NoExecute
+      key: dedicated.deckhouse.io
+      value: system
+  nodeType: Static
+  staticInstances:
+    count: 2
+    labelSelector:
+      matchLabels:
+        role: system
+---
+apiVersion: deckhouse.io/v1
+kind: NodeGroup
+metadata:
+  name: monitoring
+spec:
+  nodeTemplate:
+    labels:
+      node-role.deckhouse.io/monitoring: ''
+    taints:
+    - effect: NoExecute
+      key: dedicated.deckhouse.io
+      value: monitoring
+  nodeType: Static
+  staticInstances:
+    count: 2
+    labelSelector:
+      matchLabels:
+        role: monitoring
+---
+apiVersion: deckhouse.io/v1alpha1
+kind: SSHCredentials
+metadata:
+  name: caps
+spec:
+  privateSSHKey: "тут должен быть приватный ssh ключ"
+  user: debian
+---
+apiVersion: deckhouse.io/v1alpha1
+kind: StaticInstance
+metadata:
+  labels:
+    role: master
+  name: master-2
+spec:
+  address: 10.0.1.98
+  credentialsRef:
+    kind: SSHCredentials
+    name: caps
+---
+apiVersion: deckhouse.io/v1alpha1
+kind: StaticInstance
+metadata:
+  labels:
+    role: master
+  name: master-3
+spec:
+  address: 10.0.1.133
+  credentialsRef:
+    kind: SSHCredentials
+    name: caps
+---
+apiVersion: deckhouse.io/v1alpha1
+kind: StaticInstance
+metadata:
+  labels:
+    role: worker
+  name: worker-1
+spec:
+  address: 10.0.1.137
+  credentialsRef:
+    kind: SSHCredentials
+    name: caps
+---
+apiVersion: deckhouse.io/v1alpha1
+kind: StaticInstance
+metadata:
+  labels:
+    role: worker
+  name: worker-2
+spec:
+  address: 10.0.1.240
+  credentialsRef:
+    kind: SSHCredentials
+    name: caps
+---
+apiVersion: deckhouse.io/v1alpha1
+kind: StaticInstance
+metadata:
+  labels:
+    role: worker
+  name: worker-3
+spec:
+  address: 10.0.1.242
+  credentialsRef:
+    kind: SSHCredentials
+    name: caps
+---
+apiVersion: deckhouse.io/v1alpha1
+kind: StaticInstance
+metadata:
+  labels:
+    role: frontend
+  name: front-1
+spec:
+  address: 10.0.1.132
+  credentialsRef:
+    kind: SSHCredentials
+    name: caps
+---
+apiVersion: deckhouse.io/v1alpha1
+kind: StaticInstance
+metadata:
+  labels:
+    role: frontend
+  name: front-2
+spec:
+  address: 10.0.1.101
+  credentialsRef:
+    kind: SSHCredentials
+    name: caps
+---
+apiVersion: deckhouse.io/v1alpha1
+kind: StaticInstance
+metadata:
+  labels:
+    role: system
+  name: system-1
+spec:
+  address: 10.0.1.73
+  credentialsRef:
+    kind: SSHCredentials
+    name: caps
+---
+apiVersion: deckhouse.io/v1alpha1
+kind: StaticInstance
+metadata:
+  labels:
+    role: system
+  name: system-2
+spec:
+  address: 10.0.1.249
+  credentialsRef:
+    kind: SSHCredentials
+    name: caps
+---
+apiVersion: deckhouse.io/v1alpha1
+kind: StaticInstance
+metadata:
+  labels:
+    role: monitoring
+  name: monitoring-1
+spec:
+  address: 10.0.1.241
+  credentialsRef:
+    kind: SSHCredentials
+    name: caps
+---
+apiVersion: deckhouse.io/v1alpha1
+kind: StaticInstance
+metadata:
+  labels:
+    role: monitoring
+  name: monitoring-2
+spec:
+  address: 10.0.1.105
+  credentialsRef:
+    kind: SSHCredentials
+    name: caps
+---
+apiVersion: deckhouse.io/v1alpha1
+kind: LocalPathProvisioner
+metadata:
+  name: localpath
+spec:
+  path: /opt/local-path-provisioner
+  reclaimPolicy: Delete
+---
+apiVersion: deckhouse.io/v1
+kind: ClusterAuthorizationRule
+metadata:
+  name: admin
+spec:
+  accessLevel: SuperAdmin
+  portForwarding: true
+  subjects:
+  - kind: User
+# !!!Изменить пользователя, которому выдадут права SuperAdmin
+    name: admin@example.com
+---
+apiVersion: deckhouse.io/v1
+kind: User
+metadata:
+  name: admin
+spec:
+# Изменить пользователя и пароль для роли SuperAdmin
+  email: admin@example.com
+ # это хэш пароля 22m0gi195b, сгенерированного сейчас
+  # сгенерируйте свой или используйте этот, но только для тестирования
+  # echo "22m0gi195b" | htpasswd -BinC 10 "" | cut -d: -f2 | base64 -w0
+  # возможно, захотите изменить
+  password: JDJhJDEwJEl5aThlZ29nQndOT3VYa2pJcERTYXV1cFYxQi9Nb0RQdXMwTmJwb1VpUkpWdUNQNGJUM3h1
+---
+apiVersion: deckhouse.io/v1
+clusterDomain: cluster.local
+clusterType: Static
+kind: ClusterConfiguration
+kubernetesVersion: Automatic
+podSubnetCIDR: 10.111.0.0/16
+serviceSubnetCIDR: 10.222.0.0/16
+---
+apiVersion: deckhouse.io/v1
+deckhouse:
+# Путь к Registry
+  imagesRepo: registry.deckhouse.ru/deckhouse/ee
+  registryDockerCfg: # Тут должен быть ключ от Registry
+kind: InitConfiguration
+---
+apiVersion: deckhouse.io/v1alpha1
+kind: ModuleConfig
+metadata:
+  name: deckhouse
+spec:
+  enabled: true
+  settings:
+    bundle: Default
+    logLevel: Info
+    releaseChannel: Stable
+  version: 1
+---
+apiVersion: deckhouse.io/v1alpha1
+kind: ModuleConfig
+metadata:
+  name: global
+spec:
+  settings:
+    modules:
+      publicDomainTemplate: "%s.example.com"
+  version: 1
+---
+apiVersion: deckhouse.io/v1alpha1
+kind: ModuleConfig
+metadata:
+  name: user-authn
+spec:
+  enabled: true
+  settings:
+    controlPlaneConfigurator:
+      dexCAMode: DoNotNeed
+    publishAPI:
+      enable: true
+      https:
+        global:
+          kubeconfigGeneratorMasterCA: ''
+        mode: Global
+  version: 1
+---
+apiVersion: deckhouse.io/v1alpha1
+kind: ModuleConfig
+metadata:
+  name: cni-cilium
+spec:
+  enabled: true
+  settings:
+    tunnelMode: VXLAN
+  version: 1
+---
+apiVersion: deckhouse.io/v1
+internalNetworkCIDRs:
+- 10.0.1.0/24
+kind: StaticClusterConfiguration
