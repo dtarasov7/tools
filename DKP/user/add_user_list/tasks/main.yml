@@ -1,0 +1,86 @@
+---
+- name: Reading user list from CSV file
+  read_csv:
+    path: '{{ playbook_dir }}/roles/add_user_list/files/{{ env }}-list.csv'
+  register: users
+  tags: read_list
+
+- name: Creating a user(s)
+  user:
+    name: "{{ users.User }}"
+    shell: "/bin/bash"
+    groups: users
+    append: yes
+    password: "{{ 'XXX' | password_hash('sha512') }}"
+    update_password: on_create
+  delegate_to: "{{ users.Server }}"
+  loop: "{{ users.list }}"
+  loop_control:
+     loop_var: users
+  tags:
+    - read_list
+    - creat_users
+
+- name: Creating .ssh directories if it does not exist
+  file:
+    path: "/home/{{ users.User }}/.ssh"
+    state: directory
+    mode: 0700
+    owner: "{{ users.User }}"
+    group: users
+  delegate_to: "{{ users.Server }}"
+  when: users['Key'] is defined
+  loop: "{{ users.list }}"
+  loop_control:
+    loop_var: users
+  tags:
+    - read_list
+    - creat_dir
+
+- name: Add keys to authorized_keys file if it does not exist
+  lineinfile:
+    dest: "/home/{{ users.User }}/.ssh/authorized_keys"
+    state: present
+    create: yes
+    line: "{{ users.Key }}"
+    owner: "{{ users.User }}"
+    group: users
+    mode: 0644
+  delegate_to: "{{ users.Server }}"
+  when: users['Key'] is defined
+  loop: "{{ users.list }}"
+  loop_control:
+    loop_var: users
+  tags:
+    - read_list
+    - creat_dir
+    - add_keys
+
+- name: Add ssh-key for user(s)
+  user:
+    name: "{{ users.User }}"
+    comment: "{{ users.Key }}"
+  delegate_to: "{{ users.Server }}"
+  when: users['Key'] is defined
+  loop: "{{ users.list }}"
+  loop_control:
+    loop_var: users
+  tags:
+    - read_list
+    - creat_dir
+    - add_keys
+
+- name: Add user(s) to sudoers
+  copy:
+    dest: "/etc/sudoers.d/{{ users.User }}"
+    content: |
+        {{ users.User }}  ALL=(ALL)       NOPASSWD:       ALL
+  delegate_to: "{{ users.Server }}"
+  when: "{{ users.Sudo }}"
+  loop: "{{ users.list }}"
+  loop_control:
+    loop_var: users
+  tags:
+    - read_list
+    - add_sudo
+

@@ -1,0 +1,37 @@
+
+apiVersion: deckhouse.io/v1
+kind: NodeGroup
+metadata:
+  name: system
+spec:
+  nodeTemplate:
+    labels:
+      node-role.deckhouse.io/system: ''
+    taints:
+    - effect: NoExecute
+      key: dedicated.deckhouse.io
+      value: system
+  nodeType: Static
+  staticInstances:
+    count: 2
+    labelSelector:
+      matchLabels:
+        role: system
+
+
+apiVersion: deckhouse.io/v1
+kind: IngressNginxController
+metadata:
+  name: nginx-passthrough
+spec:
+  ingressClass: nginx
+  inlet: LoadBalancerWithSSLPassthrough
+  loadBalancerWithSSLPassthrough:
+    sourceRanges: 
+      - 192.168.230.227/30
+  nodeSelector:
+    node-role.deckhouse.io/system: ""
+  tolerations:
+  - effect: NoExecute
+    key: dedicated.deckhouse.io
+    value: system

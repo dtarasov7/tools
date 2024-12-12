@@ -1,0 +1,9 @@
+- name: Add users to servers
+  hosts: all
+  vars:
+    # разрешена ли аутентификация по паролю по ssh (true/false), none - остваить как есть на текущий момент
+    PasswordAuthentication: false
+
+  roles:
+    - role: add_user
+

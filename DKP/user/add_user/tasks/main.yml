@@ -1,0 +1,137 @@
+---
+- name: Creating a user(s)
+  user:
+    name: "{{ item['name'] }}"
+    shell: "/bin/bash"
+    groups: users
+    append: yes
+    password: "{{ 'xxx' | password_hash('sha512') }}"
+    update_password: on_create
+    state: "{{ item['state'] }}"
+  when: item.state == 'present'
+  with_items: "{{ users }}"
+  tags:
+    - creat_users
+
+- name: Deleting a user(s)
+  user:
+    name: "{{ item['name'] }}"
+    state: "{{ item['state'] }}"
+  when: item.state == 'absent'
+  with_items: "{{ users }}"
+  tags:
+    - del_users
+
+- name: Add a user(s) to additional group(s)
+  user:
+    name: "{{ item['name'] }}"
+    groups: "{{ item['name'] }},users,{{ item['groups'] }}"
+    append: no
+  when: item['groups'] is defined and item.state == 'present'
+  with_items: "{{ users }}"
+  tags:
+    - creat_users
+
+- name: Creating .ssh directories if it does not exist
+  file:
+    path: "/home/{{ item['name'] }}/.ssh"
+    state: directory
+    mode: 0700
+    owner: "{{ item['name'] }}"
+    group: users
+  with_items: "{{ users }}"
+  when: item.auth_key is defined and item.state == 'present'
+  tags:
+    - creat_dir
+
+- name: Remove (if it exist) authorized_keys file before add new
+  file:
+    path: "/home/{{ item['name'] }}/.ssh/authorized_keys"
+    state: absent
+  when: item.auth_key is defined
+  with_items: "{{ users }}"
+  tags:
+    - creat_dir
+    - add_keys
+
+- name: Add keys to authorized_keys file if it does not exist
+  lineinfile:
+    dest: "/home/{{ item['name'] }}/.ssh/authorized_keys"
+    state: present
+    create: yes
+    line: "{{ item['auth_key'] }}"
+    owner: "{{ item['name'] }}"
+    group: users
+    mode: 0644
+  when: item.auth_key is defined and item.state == 'present'
+  with_items: "{{ users }}"
+  tags:
+    - creat_dir
+    - add_keys
+
+- name: "Add user(s) to sudoers [ALL=(ALL) NOPASSWD:ALL]"
+  template:
+    src: sudoers.j2
+    dest: "/etc/sudoers.d/{{ item['name'] }}"
+    mode: "0644"
+  when: item.sudo == true and item.state == 'present'
+  with_items: "{{ users }}"
+  tags:
+    - add_sudo
+
+- name: Remove user(s) from sudoers
+  file:
+    path: "/etc/sudoers.d/{{ item['name'] }}"
+    state: absent
+  when: item.sudo == false and item.state == 'present'
+  with_items: "{{ users }}"
+  tags:
+    - add_sudo
+
+- name: Remove user(s) from sudoers
+  file:
+    path: "/etc/sudoers.d/{{ item['name'] }}"
+    state: absent
+  when: item.state == 'absent'
+  with_items: "{{ users }}"
+  tags:
+    - remove_sudo
+
+- name: "Add user(s) to sudoers to run specific commands [ALL=(ALL) NOPASSWD:command(s)]"
+  copy:
+    dest: "/etc/sudoers.d/{{ item['name'] }}"
+    content: |
+        {{ item['name'] }}  ALL=(ALL)       NOPASSWD:       {{ item['nopasswd'] }}
+  when: item.nopasswd is defined
+  with_items: "{{ users }}"
+  tags:
+    - add_specific_sudo
+
+- name: Modifaing sshd_config (disable tunneled clear text passwords)
+  lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "{{ item.src }}"
+    state: present
+    line: "{{ item.dest }}"
+  with_items:
+    - { src: "^PasswordAuthentication", dest: "PasswordAuthentication no" }
+    - { src: "^ChallengeResponseAuthentication", dest: "ChallengeResponseAuthentication no" }
+  notify: restart sshd
+  when: "PasswordAuthentication == 'false'"
+  tags:
+    - sshd_config
+
+- name: Modifaing sshd_config (enable tunneled clear text passwords)
+  lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "{{ item.src }}"
+    state: present
+    line: "{{ item.dest }}"
+  with_items:
+    - { src: "^PasswordAuthentication", dest: "PasswordAuthentication yes" }
+    - { src: "^ChallengeResponseAuthentication", dest: "ChallengeResponseAuthentication yes" }
+  notify: restart sshd
+  when: "PasswordAuthentication == 'true'"
+  tags:
+    - sshd_config
+    

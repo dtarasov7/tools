@@ -1,0 +1,20 @@
+---
+####### users settings (добавьте в inventories/наименование_среды/host_vars/имя_хоста.yml массив с переменными, если необходимо пролить на определенный хост отличные от нижеприведенных значений переменные)
+users:
+#example
+#   - name: user #username
+#     state: present #present/absent
+#     sudo: true #grant ALL=(ALL) NOPASSWD: ALL (true/false)
+#     nopasswd: command,command #grant ALL=(ALL) NOPASSWD: command,command
+#     groups:  #add user to the additional groups (!) if after adding a user to additional groups, you wont to reset to default groups (user's own group and users), then set the variable to '')
+#     auth_key: ssh-rsa .... user-rsa-key-20200525
+   - name: kalinin-ov
+     state: present
+     sudo: true
+     auth_key: ssh-rsa 
+   - name: tarasov-dl
+     state: present
+     sudo: true
+     auth_key: |
+          ssh-rsa 
+          ssh-ed25519 
