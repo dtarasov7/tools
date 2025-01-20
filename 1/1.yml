@@ -1,0 +1,24 @@
+- name: Create a new Ceph user using RadosGW API
+  hosts: localhost
+  tasks:
+    - name: Create a new user
+      uri:
+        url: "http://<radosgw-endpoint>/admin/user"
+        method: POST
+        user: "{{ admin_access_key }}"
+        password: "{{ admin_secret_key }}"
+        force_basic_auth: yes
+        headers:
+          Content-Type: "application/json"
+        body: |
+          {
+            "uid": "{{ new_user_uid }}",
+            "display_name": "{{ new_user_display_name }}"
+          }
+        status_code: 200
+        body_format: json
+      register: result
+
+    - name: Debug response
+      debug:
+        var: result.json
