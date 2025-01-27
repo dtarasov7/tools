@@ -1,0 +1,159 @@
+Развертывание Ceph 17.2.7 (Quincy) в **stretch mode** без контейнеров и Cephadm требует тщательной настройки для обеспечения высокой доступности и согласованности данных. **Stretch mode** предназначен для использования в географически распределенных средах, где кворум мониторов распределяется между несколькими ЦОД. Вот пошаговый процесс:
+
+---
+
+### **1. Предварительные требования**
+1. **Подготовка серверов:**
+   - Установите ОС (например, CentOS 8, AlmaLinux, Ubuntu 20.04/22.04).
+   - Убедитесь, что все сервера имеют статические IP-адреса и соответствующие DNS-записи.
+
+2. **Настройка сети:**
+   - Убедитесь, что все узлы могут пинговать друг друга по IP и именам.
+   - Разделите сеть на две подсети:
+     - **Frontend**: для взаимодействия между клиентами и кластером.
+     - **Backend**: для репликации данных между OSD.
+
+3. **Установка пакетов:**
+   На всех узлах установите необходимые пакеты:
+   ```bash
+   sudo apt update
+   sudo apt install -y ntp wget curl lvm2 xfsprogs ceph ceph-common ceph-mds ceph-mon ceph-osd
+   ```
+
+4. **Синхронизация времени:**
+   Установите NTP или Chrony на всех узлах и настройте синхронизацию времени.
+
+5. **Создание пользователей:**
+   - Создайте пользователя `ceph` на всех узлах:
+     ```bash
+     sudo useradd -m -s /bin/bash ceph
+     ```
+   - Настройте SSH-доступ между узлами для пользователя `ceph` (используйте SSH-ключи).
+
+---
+
+### **2. Развертывание Ceph**
+
+#### **2.1 Инициализация кластера на MON-узлах**
+1. **Инициализация первого MON (dc1-mon1):**
+   На узле `dc1-mon1` выполните:
+   ```bash
+   sudo -u ceph ceph-authtool --create-keyring /etc/ceph/ceph.mon.keyring --gen-key -n mon. --cap mon 'allow *'
+   sudo -u ceph ceph-authtool --create-keyring /etc/ceph/ceph.client.admin.keyring --gen-key -n client.admin --cap mon 'allow *' --cap osd 'allow *' --cap mgr 'allow *'
+   sudo -u ceph ceph-authtool /etc/ceph/ceph.mon.keyring --import-keyring /etc/ceph/ceph.client.admin.keyring
+   ```
+
+2. **Создание начальной конфигурации:**
+   Создайте файл `/etc/ceph/ceph.conf`:
+   ```ini
+   [global]
+   fsid = <генерируйте UUID командой `uuidgen`>
+   mon_initial_members = dc1-mon1, dc2-mon2, dc3-mon3
+   mon_host = <IP_dc1-mon1>,<IP_dc2-mon2>,<IP_dc3-mon3>
+   public_network = <frontend сеть>
+   cluster_network = <backend сеть>
+   osd_pool_default_size = 3
+   osd_pool_default_min_size = 1
+   osd_crush_update_on_start = true
+   osd_crush_chooseleaf_type = 0
+   mon_allow_pool_delete = true
+   ```
+   Скопируйте конфигурацию на все узлы MON и OSD.
+
+3. **Создание монитора на `dc1-mon1`:**
+   ```bash
+   sudo -u ceph ceph-mon --mkfs -i dc1-mon1 --keyring /etc/ceph/ceph.mon.keyring
+   sudo systemctl enable ceph-mon@dc1-mon1
+   sudo systemctl start ceph-mon@dc1-mon1
+   ```
+
+4. **Добавление других MON узлов:**
+   На узлах `dc2-mon2` и `dc3-mon3` выполните:
+   - Скопируйте файл `/etc/ceph/ceph.mon.keyring` и `/etc/ceph/ceph.conf` с `dc1-mon1`.
+   - Создайте MON:
+     ```bash
+     sudo -u ceph ceph-mon --mkfs -i <имя_узла> --keyring /etc/ceph/ceph.mon.keyring
+     sudo systemctl enable ceph-mon@<имя_узла>
+     sudo systemctl start ceph-mon@<имя_узла>
+     ```
+   - Присоедините узлы к кластеру:
+     ```bash
+     sudo -u ceph ceph quorum_status
+     ```
+
+---
+
+#### **2.2 Настройка OSD**
+1. **Подготовка дисков:**
+   На каждом узле OSD выполните:
+   ```bash
+   sudo fdisk /dev/sdX # Разделите диск
+   sudo pvcreate /dev/sdX1
+   sudo vgcreate ceph-vg /dev/sdX1
+   sudo lvcreate -L 100G -n ceph-data ceph-vg
+   ```
+
+2. **Создание OSD:**
+   На каждом узле создайте OSD:
+   ```bash
+   sudo -u ceph ceph-osd --mkfs -i <OSD_ID> --keyring /etc/ceph/ceph.osd.keyring
+   sudo systemctl enable ceph-osd@<OSD_ID>
+   sudo systemctl start ceph-osd@<OSD_ID>
+   ```
+
+3. **Добавление OSD в кластер:**
+   ```bash
+   sudo -u ceph ceph osd crush add <OSD_ID> 1.0 host=<имя_узла>
+   ```
+
+---
+
+### **3. Включение Stretch Mode**
+
+1. **Настройка CRUSH map:**
+   Обновите CRUSH map для создания правил распределения данных:
+   ```bash
+   sudo -u ceph ceph osd crush rule create-replicated stretch-rule dc1 dc2 dc3
+   ```
+
+2. **Включение Stretch Mode:**
+   ```bash
+   sudo -u ceph ceph mon enable_stretch_mode dc1 dc2 dc3
+   ```
+
+3. **Создание пулов:**
+   Создайте пул с правилом Stretch:
+   ```bash
+   sudo -u ceph ceph osd pool create stretch-pool 128 128 replicated stretch-rule
+   ```
+
+4. **Проверка состояния:**
+   Убедитесь, что кворум мониторов корректно работает:
+   ```bash
+   sudo -u ceph ceph quorum_status
+   sudo -u ceph ceph osd tree
+   ```
+
+---
+
+### **4. Завершение**
+1. **Тестирование:**
+   - Проверьте запись и чтение данных:
+     ```bash
+     rados -p stretch-pool put testfile /path/to/local/file
+     rados -p stretch-pool get testfile /path/to/local/output
+     ```
+
+2. **Мониторинг:**
+   Убедитесь, что все службы работают:
+   ```bash
+   sudo -u ceph ceph status
+   sudo -u ceph ceph health detail
+   ```
+
+3. **Резервное копирование конфигурации:**
+   Сохраните все файлы `/etc/ceph/`.
+
+---
+
+Если потребуется уточнение или помощь с конкретными командами, напишите! 
