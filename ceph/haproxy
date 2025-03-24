@@ -1,0 +1,4 @@
+http-request set-header X-Forwarded-For %[concat(hdr(X-Forwarded-For), if(hdr(X-Forwarded-For), ",", ""), src)]
+http-request add-header X-Forwarded-For %[req.hdr(X-Forwarded-For)]%[if(req.hdr(X-Forwarded-For),",\ ")]%[src]
+
+     stats realm Haproxy\ Statistics
