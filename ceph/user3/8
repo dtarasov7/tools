@@ -1,0 +1,5 @@
+- name: Обрабатываем список текущих политик пользователей
+  ansible.builtin.set_fact:
+    current_policies_dict: >-
+      {{ dict((item.item.name, item.stdout_lines) for item in current_policies.results) }}
+
