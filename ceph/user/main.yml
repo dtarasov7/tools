@@ -1,0 +1,66 @@
+- name: Настройка Ceph S3 пользователей и бакетов для всех проектов
+  hosts: localhost
+  gather_facts: no
+  vars:
+    ceph_endpoint: "http://ceph-s3.example.com"
+    Projects:
+      project1:
+        name: "nameproject1"
+        placement: placementproject1
+        admin: 
+          name: xadmin
+          secret_key: "xxx"
+          access_key: "yyy"
+        buckets:
+          bucket1:
+            name: namebucket1
+          bucket2:
+            name: namebucket2
+        users:
+          user1:
+            name: nameuser1
+            caps: "zone:*;user:*"
+            policies:
+              policy1:
+                name: policyname
+                sid: policyname
+                effect: allow
+                action:
+                  - add
+                  - del
+                resource: 
+                  - "arn:::b1"
+                  - "arn:::b1/*"
+      project2:
+        name: "nameproject2"
+        placement: placementproject2
+        admin: 
+          name: admin2
+          secret_key: "secret2"
+          access_key: "access2"
+        buckets:
+          bucket3:
+            name: namebucket3
+        users:
+          user2:
+            name: nameuser2
+            caps: "zone:*;user:*"
+            policies:
+              policy2:
+                name: policyname2
+                sid: policyname2
+                effect: deny
+                action:
+                  - read
+                resource: 
+                  - "arn:::b3"
+
+  tasks:
+
+    # --- Цикл по проектам ---
+    - name: Обрабатываем проекты
+      ansible.builtin.include_tasks: ceph_setup.yml
+      loop: "{{ Projects | dict2items }}"
+      loop_control:
+        loop_var: project
+
