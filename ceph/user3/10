@@ -1,0 +1,138 @@
+---
+- name: Управление пользователями и бакетами в Ceph RadosGW
+  hosts: localhost
+  gather_facts: false
+  vars:
+    ceph_endpoint: "http://ceph-s3.example.com"
+
+  tasks:
+    # Получаем список существующих пользователей
+    - name: Получаем список существующих пользователей
+      ansible.builtin.shell: radosgw-admin user list | jq -r '.[]'
+      register: existing_users
+      changed_when: false
+
+    - name: Сохраняем список существующих пользователей
+      ansible.builtin.set_fact:
+        existing_users_list: "{{ existing_users.stdout_lines }}"
+
+    # Проверяем пользователей в каждом проекте
+    - name: Проверяем пользователей в проектах
+      ansible.builtin.shell: |
+        radosgw-admin user info --uid={{ item.value.name }} 2>/dev/null || echo "USER_NOT_FOUND"
+      register: user_info
+      changed_when: false
+      with_dict: "{{ projects | subelements('users') }}"
+
+    # Создаём пользователей
+    - name: Создаём пользователей
+      ansible.builtin.shell: |
+        radosgw-admin user create --uid={{ item.value.name }} \
+          --display-name="{{ item.value.name }}" \
+          --placement-id={{ item.0.value.placement }} \
+          --caps="{{ item.value.caps }}"
+      when: "'USER_NOT_FOUND' in item.1.stdout"
+      with_dict: "{{ projects | subelements('users') }}"
+      register: user_creation
+
+    # Обновляем caps у существующих пользователей
+    - name: Обновляем caps у существующих пользователей
+      ansible.builtin.shell: |
+        radosgw-admin user modify --uid={{ item.value.name }} --caps="{{ item.value.caps }}"
+      when: "'USER_NOT_FOUND' not in item.1.stdout"
+      with_dict: "{{ projects | subelements('users') }}"
+      register: user_caps_update
+      changed_when: "'caps' in user_caps_update.stdout"
+
+    # Получаем список бакетов
+    - name: Проверяем существование бакетов
+      ansible.builtin.shell: |
+        AWS_ACCESS_KEY_ID={{ item.0.value.admin.access_key }} \
+        AWS_SECRET_ACCESS_KEY={{ item.0.value.admin.secret_key }} \
+        aws --endpoint-url {{ ceph_endpoint }} s3api head-bucket --bucket {{ item.1.value.name }} || echo "BUCKET_NOT_FOUND"
+      register: bucket_info
+      changed_when: false
+      with_subelements:
+        - "{{ projects }}"
+        - buckets
+
+    # Создаём бакеты
+    - name: Создание бакетов
+      ansible.builtin.shell: |
+        AWS_ACCESS_KEY_ID={{ item.0.value.admin.access_key }} \
+        AWS_SECRET_ACCESS_KEY={{ item.0.value.admin.secret_key }} \
+        aws --endpoint-url {{ ceph_endpoint }} s3api create-bucket --bucket {{ item.1.value.name }}
+      when: "'BUCKET_NOT_FOUND' in item.2.stdout"
+      with_subelements:
+        - "{{ projects }}"
+        - buckets
+      register: bucket_creation
+      changed_when: "'Bucket' in bucket_creation.stdout"
+
+    # Получаем текущие политики пользователей
+    - name: Получаем текущие политики пользователей
+      ansible.builtin.shell: |
+        AWS_ACCESS_KEY_ID={{ item.0.value.admin.access_key }} \
+        AWS_SECRET_ACCESS_KEY={{ item.0.value.admin.secret_key }} \
+        aws --endpoint-url {{ ceph_endpoint }} iam list-user-policies --user-name {{ item.1.value.name }} 2>/dev/null || echo "NO_POLICIES"
+      register: current_policies
+      changed_when: false
+      with_subelements:
+        - "{{ projects }}"
+        - users
+
+    # Обрабатываем список текущих политик пользователей
+    - name: Обрабатываем список текущих политик пользователей
+      ansible.builtin.set_fact:
+        current_policies_dict: >-
+          {{ dict((item.item.value.name, item.stdout_lines) for item in current_policies.results if 'NO_POLICIES' not in item.stdout) }}
+
+    # Удаляем ненужные политики
+    - name: Удаляем ненужные политики
+      ansible.builtin.shell: |
+        AWS_ACCESS_KEY_ID={{ item.0.value.admin.access_key }} \
+        AWS_SECRET_ACCESS_KEY={{ item.0.value.admin.secret_key }} \
+        aws --endpoint-url {{ ceph_endpoint }} iam delete-user-policy \
+          --user-name {{ item.1.value.name }} --policy-name {{ item.2 }}
+      when: item.2 not in item.1.value.policies.keys()
+      with_subelements:
+        - "{{ projects }}"
+        - users
+        - "{{ current_policies_dict.get(item.1.value.name, []) }}"
+
+    # Назначаем политики пользователям
+    - name: Назначаем политики пользователям
+      ansible.builtin.shell: |
+        cat > /tmp/policy_{{ item.1.value.name }}.json <<EOF
+        {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "{{ item.2.value.sid }}",
+              "Effect": "{{ item.2.value.effect | capitalize }}",
+              "Action": {{ item.2.value.action | to_json }},
+              "Resource": {{ item.2.value.resource | to_json }}
+            }
+          ]
+        }
+        EOF
+        AWS_ACCESS_KEY_ID={{ item.0.value.admin.access_key }} \
+        AWS_SECRET_ACCESS_KEY={{ item.0.value.admin.secret_key }} \
+        aws --endpoint-url {{ ceph_endpoint }} iam put-user-policy \
+          --user-name {{ item.1.value.name }} \
+          --policy-name {{ item.2.value.name }} \
+          --policy-document file:///tmp/policy_{{ item.1.value.name }}.json
+      with_subelements:
+        - "{{ projects }}"
+        - users
+        - policies
+      register: policy_assignment
+      changed_when: "'Policy' in policy_assignment.stdout"
+
+    # Отключаем пользователей, которых нет в переменной projects
+    - name: Приостанавливаем пользователей, не указанных в projects
+      ansible.builtin.shell: |
+        radosgw-admin user suspend --uid={{ item }}
+      when: item not in projects | subelements('users') | map(attribute='value.name') | list
+      with_items: "{{ existing_users_list }}"
+
