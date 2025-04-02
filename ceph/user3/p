@@ -1,0 +1,64 @@
+# --- Получаем текущие политики пользователей ---
+- name: Получаем текущие политики пользователей в {{ project.name }}
+  ansible.builtin.shell: |
+    AWS_ACCESS_KEY_ID={{ project.admin.access_key }} \
+    AWS_SECRET_ACCESS_KEY={{ project.admin.secret_key }} \
+    aws --endpoint-url {{ ceph_endpoint }} iam list-user-policies --user-name {{ item.name }} | jq -r '.PolicyNames[]' || echo "NO_POLICIES"
+  register: current_policies
+  with_items: "{{ project.users }}"
+  changed_when: false
+
+- name: Обрабатываем список текущих политик пользователей
+  ansible.builtin.set_fact:
+    current_policies_dict: "{{ current_policies.results | items2dict(key_name='item.name', value_name='stdout_lines') }}"
+
+# --- Удаляем политики, не указанные в проекте ---
+- name: Удаляем политики, которые не описаны в проекте {{ project.name }}
+  ansible.builtin.shell: |
+    AWS_ACCESS_KEY_ID={{ project.admin.access_key }} \
+    AWS_SECRET_ACCESS_KEY={{ project.admin.secret_key }} \
+    aws --endpoint-url {{ ceph_endpoint }} iam delete-user-policy \
+      --user-name {{ item.0.name }} --policy-name {{ item.1 }}
+  when: item.1 != "NO_POLICIES" and item.1 not in item.0.policies.keys()
+  with_subelements:
+    - "{{ project.users }}"
+    - current_policies_dict[item.0.name] | default([])
+
+# --- Создаём или обновляем политики ---
+- name: Создаём или обновляем политики пользователей в {{ project.name }}
+  ansible.builtin.shell: |
+    POLICY_FILE="/tmp/policy_{{ item.0.name }}_{{ item.1.name }}.json"
+    cat > $POLICY_FILE <<EOF
+    {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Sid": "{{ item.1.sid }}",
+          "Effect": "{{ item.1.effect | capitalize }}",
+          "Action": {{ item.1.action | to_json }},
+          "Resource": {{ item.1.resource | to_json }}
+        }
+      ]
+    }
+    EOF
+
+    CURRENT_POLICY=$(AWS_ACCESS_KEY_ID={{ project.admin.access_key }} \
+    AWS_SECRET_ACCESS_KEY={{ project.admin.secret_key }} \
+    aws --endpoint-url {{ ceph_endpoint }} iam get-user-policy \
+      --user-name {{ item.0.name }} --policy-name {{ item.1.name }} \
+      --query 'PolicyDocument' --output json 2>/dev/null || echo "POLICY_NOT_FOUND")
+
+    if [ "$CURRENT_POLICY" != "$(cat $POLICY_FILE | jq .)" ]; then
+      AWS_ACCESS_KEY_ID={{ project.admin.access_key }} \
+      AWS_SECRET_ACCESS_KEY={{ project.admin.secret_key }} \
+      aws --endpoint-url {{ ceph_endpoint }} iam put-user-policy \
+        --user-name {{ item.0.name }} \
+        --policy-name {{ item.1.name }} \
+        --policy-document file://$POLICY_FILE
+    fi
+  with_subelements:
+    - "{{ project.users }}"
+    - policies
+  register: policy_assignment
+  changed_when: "'POLICY_NOT_FOUND' in policy_assignment.stdout or 'Policy' in policy_assignment.stdout"
+
