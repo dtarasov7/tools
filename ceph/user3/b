@@ -1,0 +1,24 @@
+# --- Получаем список существующих бакетов ---
+- name: Получаем список всех бакетов в Ceph
+  ansible.builtin.shell: |
+    AWS_ACCESS_KEY_ID={{ project.admin.access_key }} \
+    AWS_SECRET_ACCESS_KEY={{ project.admin.secret_key }} \
+    aws --endpoint-url {{ ceph_endpoint }} s3api list-buckets | jq -r '.Buckets[].Name'
+  register: existing_buckets
+  changed_when: false
+
+- name: Сохраняем список существующих бакетов
+  ansible.builtin.set_fact:
+    existing_buckets_list: "{{ existing_buckets.stdout_lines }}"
+
+# --- Цикл по бакетам с проверкой их существования ---
+- name: Создаём бакеты в {{ project.name }}
+  ansible.builtin.shell: |
+    AWS_ACCESS_KEY_ID={{ project.admin.access_key }} \
+    AWS_SECRET_ACCESS_KEY={{ project.admin.secret_key }} \
+    aws --endpoint-url {{ ceph_endpoint }} s3api create-bucket --bucket {{ item.name }}
+  with_items: "{{ project.buckets }}"
+  when: item.name not in existing_buckets_list
+  register: bucket_creation
+  changed_when: "'Bucket' in bucket_creation.stdout"
+
