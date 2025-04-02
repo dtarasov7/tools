@@ -1,0 +1,19 @@
+- name: Удаляем политики, которые не описаны в проекте {{ project.name }}
+  ansible.builtin.shell: |
+    AWS_ACCESS_KEY_ID={{ project.admin.access_key }} \
+    AWS_SECRET_ACCESS_KEY={{ project.admin.secret_key }} \
+    aws --endpoint-url {{ ceph_endpoint }} iam delete-user-policy \
+      --user-name {{ item.0.key }} --policy-name {{ item.1 }}
+  loop: "{{ current_policies_dict | dict2items | subelements('value') }}"
+  when:
+    - item.1 != "NO_POLICIES"
+    - item.1 not in (
+        project.users |
+        selectattr("name", "equalto", item.0.key) |
+        map(attribute="policies") |
+        first |
+        default([]) |
+        map(attribute="name") |
+        list
+      )
+
