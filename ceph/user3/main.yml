@@ -1,0 +1,58 @@
+- name: Настройка Ceph S3 пользователей и бакетов для всех проектов
+  hosts: localhost
+  gather_facts: no
+  vars:
+    ceph_endpoint: "http://ceph-s3.example.com"
+    Projects:
+      - name: "project1"
+        placement: "placementproject1"
+        admin: 
+          name: "xadmin"
+          secret_key: "xxx"
+          access_key: "yyy"
+        buckets:
+          - name: "namebucket1"
+          - name: "namebucket2"
+        users:
+          - name: "nameuser1"
+            caps: "zone:*;user:*"
+            policies:
+              - name: "policyname"
+                sid: "policyname"
+                effect: "allow"
+                action:
+                  - "add"
+                  - "del"
+                resource: 
+                  - "arn:::b1"
+                  - "arn:::b1/*"
+          - name: "nameuser2"
+            caps: "zone:*;user:*"
+            policies:
+              - name: "policyname2"
+                sid: "policyname2"
+                effect: "deny"
+                action:
+                  - "read"
+                resource: 
+                  - "arn:::b3"
+
+  tasks:
+
+    # --- Получаем список существующих пользователей ---
+    - name: Получаем список всех пользователей в Ceph
+      ansible.builtin.shell: radosgw-admin user list | jq -r '.[]'
+      register: existing_users
+      changed_when: false
+
+    - name: Сохраняем список существующих пользователей
+      ansible.builtin.set_fact:
+        existing_users_list: "{{ existing_users.stdout_lines }}"
+
+    # --- Обрабатываем проекты ---
+    - name: Обрабатываем проекты
+      ansible.builtin.include_tasks: tasks/ceph_setup.yml
+      loop: "{{ Projects }}"
+      loop_control:
+        loop_var: project
+
