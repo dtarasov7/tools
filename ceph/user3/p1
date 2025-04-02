@@ -1,0 +1,16 @@
+# --- ѕолучаем текущие политики пользователей ---
+- name: ѕолучаем текущие политики пользователей в {{ project.name }}
+  ansible.builtin.shell: |
+    POLICIES=$(AWS_ACCESS_KEY_ID={{ project.admin.access_key }} \
+    AWS_SECRET_ACCESS_KEY={{ project.admin.secret_key }} \
+    aws --endpoint-url {{ ceph_endpoint }} iam list-user-policies --user-name {{ item.name }} 2>/dev/null || echo "NO_POLICIES")
+    
+    if [ "$POLICIES" == "NO_POLICIES" ]; then
+      echo "NO_POLICIES"
+    else
+      echo "$POLICIES" | jq -r '.PolicyNames[]'
+    fi
+  register: current_policies
+  with_items: "{{ project.users }}"
+  changed_when: false
+
