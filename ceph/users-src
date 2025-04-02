@@ -1,0 +1,54 @@
+»сходные данные заданы в переменной . ѕример переменной
+Project:
+  project1:
+    name: "nameproject1"
+    placement: placementproject1
+    admin: 
+      name: xadmin
+      secret_key: "xxx"
+      access_key: "yyy"
+    backets:
+      bucket1:
+        name: namebucket1
+      bucket2:
+        name: namebucket2
+    users:
+      user1:
+        name: nameuser1
+        caps: "zone:*;user:*"
+        policies:
+          policy1:
+            name: policyname
+            sid: #совпадает с policy1.name
+            effect: allow
+            action:
+              - add
+              - del
+            resorce: 
+              - "arn:::b1"
+              - "arn:::b1/*"
+
+  project2:
+    name: "nameproject2"
+    placement: placementproject2
+    admin: 
+      name: p2admin
+      secret_key: "xxx"
+      access_key: "yyy"
+
+“о есть есть список проектов.
+ƒл€ каждого проекта есть placement, admin, список бакетов и список пользователей
+
+Ќапиши код на ansible, который создает необходимые buckets , пользователей(users) и назначает пользовател€м политики и caps (если указаны).
+—оздание пользователей и прив€зка их к placement - через radosgw-admin.
+Cоздание бакетов и прив€зка политик к пользовател€м через aws (v1) c использование админа этого проекта ( он имеет все необходимые права).
+
+ƒл€ политик используй aws iam/
+
+—делай проверку того. что пользователь уже существует. ƒл€ существующего пользовател€ надо:
+- изменить имеющиес€ caps или добавить caps
+- удалить имеющиес€ политики (aws iam) не описанные в переменной projects
+- »зменить существующие политики
+- добавить новые политики
+
+≈сли пользователь не описан в Projects, но уже существует, то его надо поставить на паузу.

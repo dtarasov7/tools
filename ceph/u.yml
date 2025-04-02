@@ -1,0 +1,29 @@
+Project:
+  project1:
+    name: "nameproject1"
+    placement: placementproject1
+    admin: 
+      name: xadmin
+      secret_key: "xxx"
+      access_key: "yyy"
+    backets:
+      bucket1:
+        name: namebucket1
+      bucket2:
+        name: namebucket2
+    users:
+      user1:
+        name: nameuser1
+        caps: "zone:*;user:*"
+        policies:
+          policy1:
+            name: "policyname"
+            sid: "policysid"
+            effect: allow
+            action:
+              - add
+              - del
+            resorce: 
+              - "arn:::b1"
+              - "arn:::b1/*"
+    

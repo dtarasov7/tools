@@ -1,0 +1,292 @@
+---
+# roles/ceph_rgw_manager/tasks/main.yml
+- name: Ensure required packages are installed
+  become: yes
+  package:
+    name:
+      - python3-boto3
+      - ceph-common
+      - awscli
+    state: present
+
+- name: Process each project
+  include_tasks: process_project.yml
+  loop: "{{ Project | dict2items }}"
+  loop_control:
+    loop_var: project_item
+
+# roles/ceph_rgw_manager/tasks/process_project.yml
+- name: Set project facts
+  set_fact:
+    project_name: "{{ project_item.key }}"
+    project_data: "{{ project_item.value }}"
+    rgw_admin_cmd: "radosgw-admin --cluster {{ ceph_cluster_name | default('ceph') }}"
+
+- name: Check if placement exists
+  command: "{{ rgw_admin_cmd }} zone get --rgw-zone {{ project_data.placement }}"
+  register: placement_check
+  ignore_errors: yes
+  changed_when: false
+
+- name: Fail if placement doesn't exist
+  fail:
+    msg: "Placement {{ project_data.placement }} does not exist"
+  when: placement_check.rc != 0
+
+- name: Process admin user
+  include_tasks: process_user.yml
+  vars:
+    user_data: "{{ project_data.admin }}"
+    user_type: "admin"
+    user_caps: "users=*;buckets=*;metadata=*;usage=*;zone=*"
+
+- name: Process regular users
+  include_tasks: process_user.yml
+  loop: "{{ project_data.users | default({}) | dict2items }}"
+  loop_control:
+    loop_var: user_item
+  vars:
+    user_data: "{{ user_item.value }}"
+    user_type: "regular"
+
+- name: Process buckets
+  include_tasks: process_bucket.yml
+  loop: "{{ project_data.backets | default({}) | dict2items }}"
+  loop_control:
+    loop_var: bucket_item
+
+# roles/ceph_rgw_manager/tasks/process_user.yml
+- name: Set user facts
+  set_fact:
+    user_name: "{{ user_data.name }}"
+    full_user_id: "{{ project_name }}:{{ user_name }}"
+    aws_cli_env:
+      AWS_ACCESS_KEY_ID: "{{ project_data.admin.access_key }}"
+      AWS_SECRET_ACCESS_KEY: "{{ project_data.admin.secret_key }}"
+      AWS_ENDPOINT_URL: "{{ rgw_endpoint }}"
+      AWS_DEFAULT_REGION: "{{ rgw_region | default('us-east-1') }}"
+
+- name: Check if user exists
+  command: "{{ rgw_admin_cmd }} user info --uid '{{ full_user_id }}'"
+  register: user_check
+  ignore_errors: yes
+  changed_when: false
+
+- name: Create or modify user
+  block:
+    - name: Create new user
+      command: >
+        {{ rgw_admin_cmd }} user create
+        --uid '{{ full_user_id }}'
+        --display-name '{{ user_name }}'
+        --access-key '{{ user_data.access_key | default(omit) }}'
+        --secret-key '{{ user_data.secret_key | default(omit) }}'
+        --rgw-zone '{{ project_data.placement }}'
+      when: user_check.rc != 0
+      register: user_create
+
+    - name: Modify existing user
+      command: >
+        {{ rgw_admin_cmd }} user modify
+        --uid '{{ full_user_id }}'
+        --access-key '{{ user_data.access_key | default(omit) }}'
+        --secret-key '{{ user_data.secret_key | default(omit) }}'
+        --rgw-zone '{{ project_data.placement }}'
+      when: user_check.rc == 0
+      register: user_modify
+
+    - name: Update user caps
+      command: >
+        {{ rgw_admin_cmd }} caps add
+        --uid '{{ full_user_id }}'
+        --caps '{{ user_data.caps | default("") }}'
+      when: user_data.caps is defined and user_data.caps | trim != ""
+      register: caps_update
+
+    - name: Get current user policies
+      shell: |
+        aws iam list-user-policies --user-name "{{ full_user_id }}" --query 'PolicyNames' --output text
+      register: current_policies
+      environment: "{{ aws_cli_env }}"
+      changed_when: false
+      ignore_errors: yes
+
+    - name: Remove obsolete policies
+      shell: |
+        aws iam delete-user-policy --user-name "{{ full_user_id }}" --policy-name "{{ item }}"
+      loop: "{{ (current_policies.stdout | default('')).split() }}"
+      when: >
+        item not in
+        (user_data.policies | default({}) | dict2items | map(attribute='key') | list)
+      environment: "{{ aws_cli_env }}"
+      register: policies_removed
+      ignore_errors: yes
+
+    - name: Apply defined policies
+      include_tasks: process_policy.yml
+      loop: "{{ user_data.policies | default({}) | dict2items }}"
+      loop_control:
+        loop_var: policy_item
+      vars:
+        policy_data: "{{ policy_item.value }}"
+        policy_name: "{{ policy_item.key }}"
+
+  when: >
+    user_type == 'admin' or
+    (user_type == 'regular' and user_name is defined)
+
+- name: Pause unmanaged users
+  command: >
+    {{ rgw_admin_cmd }} user suspend
+    --uid '{{ full_user_id }}'
+  when: >
+    user_check.rc == 0 and
+    user_type == 'regular' and
+    project_name + ':' + user_name not in
+    (Project | dict2items | json_query('[].value.users')[0] | default({}) | dict2items | map(attribute='value.name') | list)
+
+# roles/ceph_rgw_manager/tasks/process_policy.yml
+- name: Generate policy document file
+  tempfile:
+    state: file
+    suffix: .json
+  register: policy_tempfile
+  delegate_to: localhost
+
+- name: Create policy document
+  copy:
+    dest: "{{ policy_tempfile.path }}"
+    content: |
+      {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Sid": "{{ policy_data.sid | default(policy_name) }}",
+            "Effect": "{{ policy_data.effect | default('Allow') }}",
+            "Action": {{ policy_data.action | default([]) | to_json }},
+            "Resource": {{ policy_data.resorce | default([]) | to_json }}
+          }
+        ]
+      }
+  delegate_to: localhost
+
+- name: Apply policy to user
+  shell: |
+    aws iam put-user-policy \
+      --user-name "{{ full_user_id }}" \
+      --policy-name "{{ policy_name }}" \
+      --policy-document "file://{{ policy_tempfile.path }}"
+  environment: "{{ aws_cli_env }}"
+  register: policy_apply
+
+- name: Cleanup policy document file
+  file:
+    path: "{{ policy_tempfile.path }}"
+    state: absent
+  delegate_to: localhost
+
+# roles/ceph_rgw_manager/tasks/process_bucket.yml
+- name: Set bucket facts
+  set_fact:
+    bucket_name: "{{ bucket_item.value.name }}"
+    aws_cli_env:
+      AWS_ACCESS_KEY_ID: "{{ project_data.admin.access_key }}"
+      AWS_SECRET_ACCESS_KEY: "{{ project_data.admin.secret_key }}"
+      AWS_ENDPOINT_URL: "{{ rgw_endpoint }}"
+      AWS_DEFAULT_REGION: "{{ rgw_region | default('us-east-1') }}"
+
+- name: Check if bucket exists
+  shell: |
+    aws s3api head-bucket --bucket "{{ bucket_name }}"
+  register: bucket_check
+  environment: "{{ aws_cli_env }}"
+  ignore_errors: yes
+  changed_when: false
+
+- name: Create bucket if not exists
+  shell: |
+    aws s3api create-bucket --bucket "{{ bucket_name }}"
+  when: bucket_check.rc != 0
+  environment: "{{ aws_cli_env }}"
+  register: bucket_create
+
+
+
+
+Ключевые изменения:
+Замена модулей AWS на shell-команды:
+
+Вместо community.aws.iam_policy_info используется aws iam list-user-policies
+
+Вместо community.aws.iam_policy используются aws iam put-user-policy и aws iam delete-user-policy
+
+Вместо amazon.aws.s3_bucket_info используется aws s3api head-bucket
+
+Вместо amazon.aws.s3_bucket используется aws s3api create-bucket
+
+Работа с политиками:
+
+Политики теперь создаются во временных файлах
+
+Используется команда aws iam put-user-policy для применения политик
+
+Переменные окружения AWS:
+
+Все AWS команды выполняются с установленными переменными окружения
+
+Используется AWS_ENDPOINT_URL для указания RGW endpoint
+
+Обработка ошибок:
+
+Добавлены ignore_errors: yes для критических команд
+
+Регистрируются результаты выполнения команд
+
+Установка зависимостей:
+
+Добавлен пакет awscli в список требуемых пакетов
+
+Пример использования playbook остается прежним:
+yaml
+Copy
+---
+- name: Manage Ceph RGW projects, users and buckets
+  hosts: rgw_servers
+  vars:
+    ceph_cluster_name: "ceph"
+    rgw_endpoint: "http://rgw.example.com"
+    rgw_region: "us-east-1"
+    
+    Project:
+      project1:
+        name: "nameproject1"
+        placement: "placementproject1"
+        admin: 
+          name: "xadmin"
+          secret_key: "xxx"
+          access_key: "yyy"
+        backets:
+          bucket1:
+            name: "namebucket1"
+          bucket2:
+            name: "namebucket2"
+        users:
+          user1:
+            name: "nameuser1"
+            caps: "zone:*;user:*"
+            policies:
+              policy1:
+                name: "policyname"
+                sid: "policy1"
+                effect: "allow"
+                action:
+                  - "s3:PutObject"
+                  - "s3:GetObject"
+                resorce: 
+                  - "arn:aws:s3:::namebucket1"
+                  - "arn:aws:s3:::namebucket1/*"
+
+  roles:
+    - ceph_rgw_manager
+
+Эта версия использует только стандартные модули Ansible (command, shell, copy, tempfile) и не требует установки дополнительных коллекций AWS.
