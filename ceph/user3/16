@@ -1,0 +1,13 @@
+radosgw-admin user list | jq -r '.[]' | while read -r user; do
+    placement=$(radosgw-admin user info --uid="$user" | jq -r '.placement_tags[]' 2>/dev/null)
+    if [[ "$placement" == "ÂÀØ_PLACEMENT_TARGET" ]]; then
+        echo "$user"
+    fi
+done
+
+radosgw-admin metadata list user | jq -r '.[]' | while read -r user; do
+    placement=$(radosgw-admin user info --uid="$user" | jq -r '.placement_tags[]' 2>/dev/null)
+    if [[ "$placement" == "ÂÀØ_PLACEMENT_TARGET" ]]; then
+        echo "$user"
+    fi
+done
